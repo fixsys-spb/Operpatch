@@ -90,18 +90,7 @@ powershell
 .\Check-RdpPatch-GUI.ps1
 
 или двойным кликом по Check-RdpPatch.exe.
-Сборка EXE
-powershell
 
-.\build-exe.ps1
-
-Версия берётся из CHANGELOG.md. Иконка — из icon.ico рядом со скриптом (если есть).
-
-Параметры:
-Ключ	Назначение
--Version X.Y.Z	Переопределить версию
--IconPath <path>	Своя иконка
--SkipInstall	Не устанавливать ps2exe
 Вердикты
 Ситуация	Вердикт	Действие
 Проблемное не установлено	✅ Не затронута	Следить за обновлениями
