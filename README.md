@@ -50,13 +50,13 @@
 ---
 
 ## Файлы
-Check-RdpPatch.ps1 # Консольная версия
-Check-RdpPatch-GUI.ps1 # GUI (WinForms)
-Check-RdpPatch.exe # Собранный бинарник
-build-exe.ps1 # Сборка EXE
-Check-RdpPatch-screenshot.png # Скриншот GUI
-README.md
-CHANGELOG.md
+- Check-RdpPatch.ps1 # Консольная версия
+- Check-RdpPatch-GUI.ps1 # GUI (WinForms)
+- Check-RdpPatch.exe # Собранный бинарник
+- build-exe.ps1 # Сборка EXE
+- Check-RdpPatch-screenshot.png # Скриншот GUI
+- README.md
+- CHANGELOG.md
 
 
 ---
