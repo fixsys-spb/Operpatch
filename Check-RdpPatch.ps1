@@ -1,111 +1,155 @@
 ﻿<#
 .SYNOPSIS
-    Проверка наличия проблемных обновлений RDP (сентябрь 2026)
-    и их исправлений в зависимости от версии Windows Server.
+    Check for the RDP-hang bug (September 2026) and its fix per Windows build.
 
 .DESCRIPTION
-    Скрипт определяет версию ОС по BuildNumber, проверяет:
-      - установлено ли проблемное обновление (причина зависания RDP);
-      - установлено ли исправление (OOB-патч);
-      - если исправления нет — выводит ссылку на Microsoft Update Catalog.
+    Detects OS build, decides whether it is Server or Client,
+    checks for the problematic update and the OOB fix,
+    prints a clear verdict and (if needed) a download link.
+
+.PARAMETER OpenLink
+    Open the Microsoft Update Catalog link in the default browser
+    if the fix is required but not installed.
 
 .NOTES
-    Автор: [ваше имя]
-    Дата:  2026-09-29
-    ОС:    Windows Server 2016 / 2019 / 2022
+    Date: 2026-09-29
+    Supports:
+      Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
+      Client: Windows 10 (1507..22H2, LTSC), Windows 11 (21H2..26H1)
 #>
 
 [CmdletBinding()]
 param(
-    [switch]$OpenLink  # Открыть ссылку в браузере, если исправление не установлено
+    [switch]$OpenLink
 )
 
-# --- Цветной вывод ---
-function Write-Info    { param($m) Write-Host $m -ForegroundColor Cyan }
-function Write-Ok      { param($m) Write-Host $m -ForegroundColor Green }
-function Write-Warn    { param($m) Write-Host $m -ForegroundColor Yellow }
-function Write-Err     { param($m) Write-Host $m -ForegroundColor Red }
+# --- Colored output helpers ---
+function Write-Info { param($m) Write-Host $m -ForegroundColor Cyan }
+function Write-Ok   { param($m) Write-Host $m -ForegroundColor Green }
+function Write-Warn { param($m) Write-Host $m -ForegroundColor Yellow }
+function Write-Err  { param($m) Write-Host $m -ForegroundColor Red }
+function Write-Dim  { param($m) Write-Host $m -ForegroundColor DarkGray }
 
-# --- Карта соответствия: build -> данные о патчах ---
-$PatchMap = @{
-    14393 = @{
-        OS       = "Windows Server 2016"
-        Problem  = "KB5123099"
-        Fix      = "KB5129239"
-    }
-    17763 = @{
-        OS       = "Windows Server 2019"
-        Problem  = "KB5122876"
-        Fix      = "KB5129238"
-    }
-    20348 = @{
-        OS       = "Windows Server 2022"
-        Problem  = "KB5122882"
-        Fix      = "KB5129237"
-    }
+# --- Patch map: Server OS ---
+$ServerPatchMap = @{
+    9200  = @{ OS = "Windows Server 2012";       Problem = "KB5123065"; Fix = "KB5129244" }
+    9600  = @{ OS = "Windows Server 2012 R2";    Problem = "KB5123066"; Fix = "KB5129243" }
+    14393 = @{ OS = "Windows Server 2016";       Problem = "KB5123099"; Fix = "KB5129239" }
+    17763 = @{ OS = "Windows Server 2019";       Problem = "KB5122876"; Fix = "KB5129238" }
+    20348 = @{ OS = "Windows Server 2022";       Problem = "KB5122882"; Fix = "KB5129237" }
+    26100 = @{ OS = "Windows Server 2025";       Problem = "KB5122871"; Fix = "KB5129235" }
 }
 
-# --- Определение ОС ---
-Write-Info "`n=== Проверка обновлений RDP (сентябрь 2026) ===`n"
+# --- Patch map: Client OS ---
+$ClientPatchMap = @{
+    # Windows 10
+    10240 = @{ OS = "Windows 10 1507 / LTSB 2015";                 Problem = "KB5123099"; Fix = "KB5129239" }
+    10586 = @{ OS = "Windows 10 1511";                             Problem = "KB5123099"; Fix = "KB5129239" }
+    14393 = @{ OS = "Windows 10 1607 / LTSB 2016";                 Problem = "KB5123099"; Fix = "KB5129239" }
+    15063 = @{ OS = "Windows 10 1703";                             Problem = "KB5122878"; Fix = "KB5129236" }
+    16299 = @{ OS = "Windows 10 1709";                             Problem = "KB5122878"; Fix = "KB5129236" }
+    17134 = @{ OS = "Windows 10 1803";                             Problem = "KB5122878"; Fix = "KB5129236" }
+    17763 = @{ OS = "Windows 10 1809 / LTSC 2019";                 Problem = "KB5122876"; Fix = "KB5129238" }
+    18362 = @{ OS = "Windows 10 1903";                             Problem = "KB5122878"; Fix = "KB5129236" }
+    18363 = @{ OS = "Windows 10 1909";                             Problem = "KB5122878"; Fix = "KB5129236" }
+    19041 = @{ OS = "Windows 10 2004 / 20H2 / 21H1 / 21H2 / 22H2"; Problem = "KB5122878"; Fix = "KB5129236" }
+    19042 = @{ OS = "Windows 10 20H2";                             Problem = "KB5122878"; Fix = "KB5129236" }
+    19043 = @{ OS = "Windows 10 21H1";                             Problem = "KB5122878"; Fix = "KB5129236" }
+    19044 = @{ OS = "Windows 10 21H2";                             Problem = "KB5122878"; Fix = "KB5129236" }
+    19045 = @{ OS = "Windows 10 22H2";                             Problem = "KB5122878"; Fix = "KB5129236" }
 
+    # Windows 11
+    22000 = @{ OS = "Windows 11 21H2";                             Problem = "KB5122880"; Fix = "KB5129242" }
+    22621 = @{ OS = "Windows 11 22H2";                             Problem = "KB5122880"; Fix = "KB5129242" }
+    22631 = @{ OS = "Windows 11 23H2";                             Problem = "KB5122880"; Fix = "KB5129242" }
+    26100 = @{ OS = "Windows 11 24H2";                             Problem = "KB5124008"; Fix = "KB5129195" }
+    26200 = @{ OS = "Windows 11 25H2";                             Problem = "KB5124008"; Fix = "KB5129195" }
+    27695 = @{ OS = "Windows 11 26H1";                             Problem = "KB5124012"; Fix = "KB5129194" }
+}
+
+# ======================== MAIN ========================
+
+Write-Info "`n=== RDP patch check (September 2026) ===`n"
+
+# --- 1. Detect OS ---
 $os = Get-CimInstance Win32_OperatingSystem |
       Select-Object Caption, Version, BuildNumber, OSArchitecture
-
 $build = [int]$os.BuildNumber
 
-Write-Host ("ОС:           {0}" -f $os.Caption)
-Write-Host ("Версия:       {0}" -f $os.Version)
-Write-Host ("Сборка:       {0}" -f $build)
-Write-Host ("Архитектура:  {0}" -f $os.OSArchitecture)
+Write-Host ("OS:           {0}" -f $os.Caption)
+Write-Host ("Version:      {0}" -f $os.Version)
+Write-Host ("Build:        {0}" -f $build)
+Write-Host ("Architecture: {0}" -f $os.OSArchitecture)
 Write-Host ""
 
-if (-not $PatchMap.ContainsKey($build)) {
-    Write-Warn "Для сборки $build информация о патчах отсутствует."
-    Write-Warn "Скрипт поддерживает: 14393 (2016), 17763 (2019), 20348 (2022)."
+# --- 2. Choose map ---
+$isServer = $os.Caption -match "Server"
+if ($isServer) {
+    $map = $ServerPatchMap
+    Write-Dim "Detected: Server OS"
+} else {
+    $map = $ClientPatchMap
+    Write-Dim "Detected: Client OS"
+}
+
+if (-not $map.ContainsKey($build)) {
+    Write-Warn "No patch info for build $build."
+    Write-Warn "Supported builds: $($map.Keys -join ', ')"
     return
 }
 
-$info = $PatchMap[$build]
-Write-Info ("Целевая ОС:   {0}" -f $info.OS)
-Write-Host ("Проблемный:   {0}" -f $info.Problem)
-Write-Host ("Исправление:  {0}" -f $info.Fix)
+# --- 3. Show target info ---
+$info = $map[$build]
+Write-Info ("Target OS:    {0}" -f $info.OS)
+Write-Host ("Problem KB:   {0}" -f $info.Problem)
+Write-Host ("Fix KB:       {0}" -f $info.Fix)
 Write-Host ""
 
-# --- Проверка проблемного обновления ---
+# --- 4. Check installed updates ---
 $problemInstalled = Get-HotFix -Id $info.Problem -ErrorAction SilentlyContinue
-if ($problemInstalled) {
-    Write-Err ("[!] Проблемное обновление {0} УСТАНОВЛЕНО (установлено: {1})." -f `
-        $info.Problem, $problemInstalled.InstalledOn)
-    Write-Err "    Именно оно вызывает зависание RDP / RDS."
-} else {
-    Write-Ok ("[OK] Проблемное обновление {0} не найдено." -f $info.Problem)
-}
+$fixInstalled     = Get-HotFix -Id $info.Fix     -ErrorAction SilentlyContinue
 
-# --- Проверка исправления ---
-$fixInstalled = Get-HotFix -Id $info.Fix -ErrorAction SilentlyContinue
-if ($fixInstalled) {
-    Write-Ok ("[OK] Исправление {0} УСТАНОВЛЕНО (установлено: {1})." -f `
+Write-Dim "--- Status ---"
+
+if (-not $problemInstalled) {
+    # --- Scenario A: problem update not installed -> safe ---
+    Write-Ok ("[OK] Problem update {0} is NOT installed." -f $info.Problem)
+    Write-Ok "This system is NOT affected by the RDP bug."
+    Write-Host ""
+    Write-Dim ("Note: If Windows Update installs {0} later," -f $info.Problem)
+    Write-Dim ("      you will need fix {0} to repair RDP." -f $info.Fix)
+}
+elseif ($fixInstalled) {
+    # --- Scenario B: problem installed + fix installed -> protected ---
+    Write-Err ("[!] Problem update {0} IS INSTALLED ({1})." -f `
+        $info.Problem, $problemInstalled.InstalledOn)
+    Write-Host ""
+    Write-Ok ("[OK] Fix {0} IS INSTALLED ({1})." -f `
         $info.Fix, $fixInstalled.InstalledOn)
+    Write-Ok "System is protected. No action required."
+}
+else {
+    # --- Scenario C: problem installed, fix missing -> ACTION REQUIRED ---
+    Write-Err ("[!] Problem update {0} IS INSTALLED ({1})." -f `
+        $info.Problem, $problemInstalled.InstalledOn)
+    Write-Err "    This is the cause of the RDP hang."
     Write-Host ""
-    Write-Ok "Сервер защищён. Дополнительных действий не требуется."
-} else {
-    Write-Warn ("[!] Исправление {0} НЕ УСТАНОВЛЕНО." -f $info.Fix)
-    Write-Host ""
+    Write-Warn ("[!] Fix {0} is NOT installed. ACTION REQUIRED." -f $info.Fix)
 
     $catalogUrl = "https://www.catalog.update.microsoft.com/Search.aspx?q=$($info.Fix)"
-    Write-Info "Ссылка на скачивание в Microsoft Update Catalog:"
+    Write-Host ""
+    Write-Info "Download link (Microsoft Update Catalog):"
     Write-Host $catalogUrl -ForegroundColor Yellow
     Write-Host ""
-    Write-Info "Как скачать:"
-    Write-Host "  1. Открыть ссылку в браузере."
-    Write-Host "  2. Найти пакет для x64 и нажать 'Download'."
-    Write-Host "  3. Скопировать актуальную ссылку на .msu и скачать файл."
-    Write-Host "  4. Установить:"
+    Write-Info "Steps:"
+    Write-Host "  1. Open the link, find the x64 package, click Download."
+    Write-Host "  2. Copy the real .msu URL and download the file."
+    Write-Host "  3. Install:"
     Write-Host "     Start-Process wusa.exe -ArgumentList 'C:\Temp\$($info.Fix).msu /quiet /norestart' -Wait"
-    Write-Host "  5. Перезагрузить сервер."
+    Write-Host "  4. Reboot the system."
 
     if ($OpenLink) {
-        Write-Info "`nОткрываю ссылку в браузере..."
+        Write-Info "`nOpening catalog in browser..."
         Start-Process $catalogUrl
     }
 }
