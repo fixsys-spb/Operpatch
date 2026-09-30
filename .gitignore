@@ -1,0 +1,52 @@
+# ---------- Windows ----------
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# ---------- PowerShell ----------
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+~$*
+*.ps1xml.tmp
+ConsoleHost_history.txt
+
+# ---------- Visual Studio / VS Code ----------
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+*.code-workspace
+
+# ---------- Logs ----------
+*.log
+logs/
+*.log.*
+
+# ---------- Testing / Debug ----------
+TestResults/
+[Cc]overage/
+*.pdb
+*.cache
+
+# ---------- Temporary folders ----------
+temp/
+tmp/
+.cache/
+
+# ---------- OS metadata ----------
+.DS_Store
+.Spotlight-V100
+.Trashes

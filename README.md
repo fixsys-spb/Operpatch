@@ -1,5 +1,7 @@
 ﻿**English** | [Русский](README.ru.md)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 # Check-RdpPatch
 
 A diagnostic tool for the RDP hang bug introduced by the September 2026 Windows cumulative updates.
@@ -201,7 +203,7 @@ No second installation is needed. The fix is applied. Reboot the machine if you 
 
 ## License
 
-Internal tool. Free to use and modify within the infrastructure.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ## CHANGELOG
 

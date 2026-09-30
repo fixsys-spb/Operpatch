@@ -1,5 +1,7 @@
 ﻿[English](README.md) | **Русский**
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 # Check-RdpPatch
 
 Инструмент для проверки и лечения RDP-бага, появившегося после сентябрьских обновлений Windows 2026 года.
@@ -200,7 +202,7 @@ Server 2012 / 2012 R2 не работают в GUI.
 
 ## Лицензия
 
-Внутренний инструмент. Свободен для использования и модификации внутри инфраструктуры.
+Проект распространяется по лицензии MIT — подробности в файле [LICENSE](LICENSE).
 
 ## CHANGELOG
 
