@@ -106,7 +106,8 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 - Обычные права пользователя. Админ не нужен.
 
 Если PowerShell блокирует `.ps1`-скрипты используйте:
-```powershell
+```
+## powershell
 
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
