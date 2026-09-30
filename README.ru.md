@@ -1,6 +1,7 @@
 ﻿[English](README.md) | **Русский**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Latest release](https://img.shields.io/github/v/release/fixsys-spb/Operpatch)](https://github.com/fixsys-spb/Operpatch/releases/latest)
 
 # Check-RdpPatch
 
