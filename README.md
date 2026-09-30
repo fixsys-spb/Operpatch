@@ -105,8 +105,9 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 - PowerShell 5.1 или выше — встроен в Windows 10/11 и Server 2016+.
 - Обычные права пользователя. Админ не нужен.
 
-Если PowerShell блокирует `.ps1`-скрипты:
-
+Если PowerShell блокирует `.ps1`-скрипты используйте:
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 
 ## Альтернативные способы запуска
