@@ -1,5 +1,7 @@
 ﻿[English](README.md) | **Русский**
 
+[![Latest release](https://img.shields.io/github/v/release/fixsys-spb/Operpatch)](https://github.com/fixsys-spb/Operpatch/releases/latest)
+
 # Check-RdpPatch
 
 Инструмент для проверки и лечения RDP-бага, появившегося после сентябрьских обновлений Windows 2026 года.
