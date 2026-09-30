@@ -108,7 +108,7 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 Если PowerShell блокирует `.ps1`-скрипты используйте:
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-
+```
 
 ## Альтернативные способы запуска
 
