@@ -7,11 +7,16 @@
     Shows status, Microsoft Update Catalog link
     with "Copy link" and "Open in browser" buttons.
 
+    KB detection uses three sources:
+      1. Get-HotFix
+      2. WUA COM history
+      3. DISM
+
 .NOTES
     Author:  fixsys-spb
     GitHub:  https://github.com/fixsys-spb/Operpatch
     Date:    2026-09-30
-    Version: 1.0.1
+    Version: 1.0.2
     License: MIT (see LICENSE)
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
@@ -21,6 +26,62 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
+
+# ---------- Robust KB detection ----------
+function Test-KbInstalled {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$KbId
+    )
+
+    # Method 1: Get-HotFix
+    $hotfix = Get-HotFix -Id $KbId -ErrorAction SilentlyContinue
+    if ($hotfix) {
+        return [PSCustomObject]@{
+            Installed = $true
+            Source    = 'Get-HotFix'
+            Date      = $hotfix.InstalledOn
+        }
+    }
+
+    # Method 2: WUA COM history
+    try {
+        $session  = New-Object -ComObject Microsoft.Update.Session
+        $searcher = $session.CreateUpdateSearcher()
+        $total    = $searcher.GetTotalHistoryCount()
+        if ($total -gt 0) {
+            $maxRecords = [Math]::Min($total, 500)
+            $history    = $searcher.QueryHistory(0, $maxRecords)
+            $match      = $history | Where-Object { $_.Title -match $KbId } |
+                          Sort-Object Date -Descending | Select-Object -First 1
+            if ($match) {
+                return [PSCustomObject]@{
+                    Installed = $true
+                    Source    = 'WUA History'
+                    Date      = $match.Date
+                }
+            }
+        }
+    } catch { }
+
+    # Method 3: DISM
+    try {
+        $dismOutput = & dism.exe /online /get-packages 2>$null
+        if ($dismOutput -match $KbId) {
+            return [PSCustomObject]@{
+                Installed = $true
+                Source    = 'DISM'
+                Date      = $null
+            }
+        }
+    } catch { }
+
+    return [PSCustomObject]@{
+        Installed = $false
+        Source    = 'none'
+        Date      = $null
+    }
+}
 
 # ---------- Patch maps ----------
 $ServerPatchMap = @{
@@ -80,8 +141,8 @@ else {
     $info    = $map[$build]
     $fixUrl  = "https://www.catalog.update.microsoft.com/Search.aspx?q=$($info.Fix)"
 
-    $problem = Get-HotFix -Id $info.Problem -ErrorAction SilentlyContinue
-    $fix     = Get-HotFix -Id $info.Fix     -ErrorAction SilentlyContinue
+    $problemCheck = Test-KbInstalled -KbId $info.Problem
+    $fixCheck     = Test-KbInstalled -KbId $info.Fix
 
     [void]$statusLines.Add(("Target OS:    {0}" -f $info.OS))
     [void]$statusLines.Add(("Problem KB:   {0}" -f $info.Problem))
@@ -89,7 +150,7 @@ else {
     [void]$statusLines.Add("")
     [void]$statusLines.Add("--- Status ---")
 
-    if (-not $problem) {
+    if (-not $problemCheck.Installed) {
         [void]$statusLines.Add("[OK] Problem update is NOT installed.")
         [void]$statusLines.Add("     This system is NOT affected by the RDP bug.")
         [void]$statusLines.Add("")
@@ -98,12 +159,12 @@ else {
         [void]$statusLines.Add("")
         [void]$statusLines.Add("Download link is provided in case the problem arrives later.")
     }
-    elseif ($fix) {
-        [void]$statusLines.Add("[!] Problem update IS installed.")
-        [void]$statusLines.Add("[OK] Fix IS installed. System is protected.")
+    elseif ($fixCheck.Installed) {
+        [void]$statusLines.Add(("[!] Problem update IS installed (via {0})." -f $problemCheck.Source))
+        [void]$statusLines.Add(("[OK] Fix IS installed (via {0}). System is protected." -f $fixCheck.Source))
     }
     else {
-        [void]$statusLines.Add("[!] Problem update IS installed.")
+        [void]$statusLines.Add(("[!] Problem update IS installed (via {0})." -f $problemCheck.Source))
         [void]$statusLines.Add("[!] Fix is NOT installed. ACTION REQUIRED.")
         [void]$statusLines.Add("")
         [void]$statusLines.Add("Use the buttons below to download the fix.")

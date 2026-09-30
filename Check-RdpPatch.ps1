@@ -7,6 +7,14 @@
     checks for the problematic update and the OOB fix,
     prints a clear verdict and (if needed) a download link.
 
+    KB detection uses three independent sources:
+      1. Get-HotFix  — classic QFE list
+      2. WUA COM     — Microsoft.Update.Session history (sees LCU/SSU bundles)
+      3. DISM        — fallback for offline installs
+
+    This matters because bundled SSU+LCU updates are often invisible
+    to Get-HotFix alone.
+
 .PARAMETER OpenLink
     Open the Microsoft Update Catalog link in the default browser
     if the fix is required but not installed.
@@ -15,7 +23,7 @@
     Author:  fixsys-spb
     GitHub:  https://github.com/fixsys-spb/Operpatch
     Date:    2026-09-30
-    Version: 1.0.1
+    Version: 1.0.2
     License: MIT (see LICENSE)
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
@@ -33,6 +41,65 @@ function Write-Ok   { param($m) Write-Host $m -ForegroundColor Green }
 function Write-Warn { param($m) Write-Host $m -ForegroundColor Yellow }
 function Write-Err  { param($m) Write-Host $m -ForegroundColor Red }
 function Write-Dim  { param($m) Write-Host $m -ForegroundColor DarkGray }
+
+# --- Robust KB detection (Get-HotFix alone is not enough for LCUs) ---
+function Test-KbInstalled {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$KbId
+    )
+
+    # Method 1: Get-HotFix — fast, works for classic hotfixes
+    $hotfix = Get-HotFix -Id $KbId -ErrorAction SilentlyContinue
+    if ($hotfix) {
+        return [PSCustomObject]@{
+            Installed = $true
+            Source    = 'Get-HotFix'
+            Date      = $hotfix.InstalledOn
+        }
+    }
+
+    # Method 2: Windows Update Agent history — sees LCU and SSU bundles
+    try {
+        $session  = New-Object -ComObject Microsoft.Update.Session
+        $searcher = $session.CreateUpdateSearcher()
+        $total    = $searcher.GetTotalHistoryCount()
+        if ($total -gt 0) {
+            # Cap the query — history can grow to tens of thousands of records
+            $maxRecords = [Math]::Min($total, 500)
+            $history    = $searcher.QueryHistory(0, $maxRecords)
+            $match      = $history | Where-Object { $_.Title -match $KbId } |
+                          Sort-Object Date -Descending | Select-Object -First 1
+            if ($match) {
+                return [PSCustomObject]@{
+                    Installed = $true
+                    Source    = 'WUA History'
+                    Date      = $match.Date
+                }
+            }
+        }
+    } catch {
+        # WUA COM may be unavailable in hardened environments — ignore and continue
+    }
+
+    # Method 3: DISM packages — fallback for offline or DISM-applied updates
+    try {
+        $dismOutput = & dism.exe /online /get-packages 2>$null
+        if ($dismOutput -match $KbId) {
+            return [PSCustomObject]@{
+                Installed = $true
+                Source    = 'DISM'
+                Date      = $null
+            }
+        }
+    } catch { }
+
+    return [PSCustomObject]@{
+        Installed = $false
+        Source    = 'none'
+        Date      = $null
+    }
+}
 
 # --- Patch map: Server OS ---
 $ServerPatchMap = @{
@@ -99,7 +166,7 @@ if ($isServer) {
 if (-not $map.ContainsKey($build)) {
     Write-Warn "No patch info for build $build."
     Write-Warn "Supported builds: $($map.Keys -join ', ')"
-    Write-Dim "`nCheck-RdpPatch v1.0.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+    Write-Dim "`nCheck-RdpPatch v1.0.2  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
     return
 }
 
@@ -110,13 +177,13 @@ Write-Host ("Problem KB:   {0}" -f $info.Problem)
 Write-Host ("Fix KB:       {0}" -f $info.Fix)
 Write-Host ""
 
-# --- 4. Check installed updates ---
-$problemInstalled = Get-HotFix -Id $info.Problem -ErrorAction SilentlyContinue
-$fixInstalled     = Get-HotFix -Id $info.Fix     -ErrorAction SilentlyContinue
+# --- 4. Check installed updates (multi-source detection) ---
+$problemCheck = Test-KbInstalled -KbId $info.Problem
+$fixCheck     = Test-KbInstalled -KbId $info.Fix
 
 Write-Dim "--- Status ---"
 
-if (-not $problemInstalled) {
+if (-not $problemCheck.Installed) {
     # --- Scenario A: problem update not installed -> safe ---
     Write-Ok ("[OK] Problem update {0} is NOT installed." -f $info.Problem)
     Write-Ok "This system is NOT affected by the RDP bug."
@@ -126,19 +193,19 @@ if (-not $problemInstalled) {
     Write-Host ""
     Write-Dim "Download link is provided in case the problem update arrives later."
 }
-elseif ($fixInstalled) {
+elseif ($fixCheck.Installed) {
     # --- Scenario B: problem installed + fix installed -> protected ---
-    Write-Warn ("[!] Problem update {0} IS INSTALLED ({1})." -f `
-        $info.Problem, $problemInstalled.InstalledOn)
+    Write-Warn ("[!] Problem update {0} IS INSTALLED (detected via {1})." -f `
+        $info.Problem, $problemCheck.Source)
     Write-Host ""
-    Write-Ok ("[OK] Fix {0} IS INSTALLED ({1})." -f `
-        $info.Fix, $fixInstalled.InstalledOn)
+    Write-Ok ("[OK] Fix {0} IS INSTALLED (detected via {1})." -f `
+        $info.Fix, $fixCheck.Source)
     Write-Ok "System is protected. No action required."
 }
 else {
     # --- Scenario C: problem installed, fix missing -> ACTION REQUIRED ---
-    Write-Err ("[!] Problem update {0} IS INSTALLED ({1})." -f `
-        $info.Problem, $problemInstalled.InstalledOn)
+    Write-Err ("[!] Problem update {0} IS INSTALLED (detected via {1})." -f `
+        $info.Problem, $problemCheck.Source)
     Write-Err "    This is the cause of the RDP hang."
     Write-Host ""
     Write-Warn ("[!] Fix {0} is NOT installed. ACTION REQUIRED." -f $info.Fix)
@@ -165,5 +232,5 @@ if ($info.Fix) {
 }
 
 Write-Host ""
-Write-Dim "Check-RdpPatch v1.0.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+Write-Dim "Check-RdpPatch v1.0.2  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
 Write-Host ""

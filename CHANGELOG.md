@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- KB detection now uses three independent sources: `Get-HotFix`, WUA COM history, and DISM.
+  Bundled SSU+LCU packages were previously invisible to `Get-HotFix` alone, causing false
+  "not installed" verdicts on Windows Server 2022 and other builds.
+
 ### Planned
 - Network mode: scan a list of servers via `Invoke-Command`.
 - CSV report export.
