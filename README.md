@@ -42,11 +42,18 @@ Start-Process wusa.exe -ArgumentList "C:\Temp\KBxxxxxxx.msu /quiet /norestart" -
 Get-HotFix -Id KBxxxxxxx
 
 
+
 6. Обязательно перезагрузите компьютер. Без перезагрузки патч не работает.
 
 ### Шаг 5. Перепроверьте
 
 Запустите `Check-RdpPatch.exe` снова. Вердикт должен измениться на «Fix IS installed».
+
+### Если патч уже установлен
+
+Если вы запускаете установщик `.msu` повторно, Windows сообщит, что обновление уже установлено на этом компьютере. Это ожидаемое поведение — повторная установка не требуется и не нанесёт вреда системе.
+
+![Патч уже установлен](Check-RdpPatch-screenshot2.png)
 
 ## Что делать, если RDP уже не отвечает
 
@@ -88,7 +95,8 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 | `Check-RdpPatch-GUI.ps1` | Исходник GUI-версии |
 | `Check-RdpPatch.ps1` | Консольная версия |
 | `build-exe.ps1` | Сборка EXE |
-| `Check-RdpPatch-screenshot.png` | Скриншот |
+| `Check-RdpPatch-screenshot.png` | Скриншот главного окна |
+| `Check-RdpPatch-screenshot2.png` | Скриншот: патч уже установлен |
 | `CHANGELOG.md` | История версий |
 
 ## Требования
@@ -97,7 +105,6 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 - Обычные права пользователя. Админ не нужен.
 
 Если PowerShell блокирует `.ps1`-скрипты:
-
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 
