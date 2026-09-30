@@ -106,8 +106,7 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 - Обычные права пользователя. Админ не нужен.
 
 Если PowerShell блокирует `.ps1`-скрипты используйте:
-```
-## powershell
+```powershell
 
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
@@ -116,16 +115,24 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ## Альтернативные способы запуска
 
 Консольная версия:
+```powershell
 .\Check-RdpPatch.ps1
 
+```
 
 Открыть ссылку в браузере сразу:
+```powershell
+
 .\Check-RdpPatch.ps1 -OpenLink
 
+```
 
 GUI через PowerShell:
+```powershell
+
 .\Check-RdpPatch-GUI.ps1
 
+```
 
 ## Интерфейс программы
 
