@@ -3,9 +3,16 @@
     RDP Patch Check - GUI (September 2026 bug).
 
 .DESCRIPTION
-    WinForms-обёртка для скрипта проверки RDP-бага.
-    Показывает статус, ссылку на Microsoft Update Catalog
-    с кнопками "Copy link" и "Open in browser".
+    WinForms wrapper for the RDP patch check script.
+    Shows status, Microsoft Update Catalog link
+    with "Copy link" and "Open in browser" buttons.
+
+.NOTES
+    Author:  fixsys-spb
+    GitHub:  https://github.com/fixsys-spb/Operpatch
+    Date:    2026-09-30
+    Version: 1.0.1
+    License: Internal use
 #>
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -53,10 +60,7 @@ $isServer = $os.Caption -match "Server"
 $map      = if ($isServer) { $ServerPatchMap } else { $ClientPatchMap }
 
 $statusLines = New-Object System.Collections.ArrayList
-$statusColor = "Green"
 $fixUrl      = ""
-$fixKb       = ""
-$needsAction = $false
 
 [void]$statusLines.Add(("OS:           {0}" -f $os.Caption))
 [void]$statusLines.Add(("Version:      {0}" -f $os.Version))
@@ -68,11 +72,9 @@ $needsAction = $false
 if (-not $map.ContainsKey($build)) {
     [void]$statusLines.Add("")
     [void]$statusLines.Add("No patch info for build $build.")
-    $statusColor = "Orange"
 }
 else {
     $info    = $map[$build]
-    $fixKb   = $info.Fix
     $fixUrl  = "https://www.catalog.update.microsoft.com/Search.aspx?q=$($info.Fix)"
 
     $problem = Get-HotFix -Id $info.Problem -ErrorAction SilentlyContinue
@@ -90,27 +92,25 @@ else {
         [void]$statusLines.Add("")
         [void]$statusLines.Add(("Note: if Windows Update installs {0} later," -f $info.Problem))
         [void]$statusLines.Add(("      you will need fix {0}." -f $info.Fix))
-        $statusColor = "Green"
+        [void]$statusLines.Add("")
+        [void]$statusLines.Add("Download link is provided in case the problem arrives later.")
     }
     elseif ($fix) {
         [void]$statusLines.Add("[!] Problem update IS installed.")
         [void]$statusLines.Add("[OK] Fix IS installed. System is protected.")
-        $statusColor = "Green"
     }
     else {
         [void]$statusLines.Add("[!] Problem update IS installed.")
         [void]$statusLines.Add("[!] Fix is NOT installed. ACTION REQUIRED.")
         [void]$statusLines.Add("")
         [void]$statusLines.Add("Use the buttons below to download the fix.")
-        $statusColor = "Red"
-        $needsAction = $true
     }
 }
 
 # ---------- Form ----------
 $form = New-Object System.Windows.Forms.Form
 $form.Text            = "RDP Patch Check — September 2026"
-$form.Size            = New-Object System.Drawing.Size(720, 580)
+$form.Size            = New-Object System.Drawing.Size(720, 600)
 $form.StartPosition   = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox     = $false
@@ -126,26 +126,48 @@ $title.Location = New-Object System.Drawing.Point(20, 15)
 $title.Size     = New-Object System.Drawing.Size(400, 30)
 $form.Controls.Add($title)
 
+# Subtitle
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text     = "Bug introduced by September 2026 cumulative updates"
-$subtitle.Font     = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Italic)
+$subtitle.Text      = "Bug introduced by September 2026 cumulative updates"
+$subtitle.Font      = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Italic)
 $subtitle.ForeColor = [System.Drawing.Color]::Gray
-$subtitle.Location = New-Object System.Drawing.Point(22, 45)
-$subtitle.Size     = New-Object System.Drawing.Size(600, 20)
+$subtitle.Location  = New-Object System.Drawing.Point(22, 45)
+$subtitle.Size      = New-Object System.Drawing.Size(600, 20)
 $form.Controls.Add($subtitle)
 
-# Output RichTextBox
+# Author line
+$author = New-Object System.Windows.Forms.Label
+$author.Text      = "(c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+$author.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
+$author.ForeColor = [System.Drawing.Color]::Gray
+$author.Location  = New-Object System.Drawing.Point(22, 63)
+$author.Size      = New-Object System.Drawing.Size(600, 16)
+$form.Controls.Add($author)
+
+# Output RichTextBox with line-by-line coloring
 $rtb = New-Object System.Windows.Forms.RichTextBox
-$rtb.Location    = New-Object System.Drawing.Point(20, 75)
-$rtb.Size        = New-Object System.Drawing.Size(665, 300)
+$rtb.Location    = New-Object System.Drawing.Point(20, 85)
+$rtb.Size        = New-Object System.Drawing.Size(665, 290)
 $rtb.ReadOnly    = $true
 $rtb.BackColor   = [System.Drawing.Color]::White
 $rtb.ForeColor   = [System.Drawing.Color]::Black
 $rtb.Font        = New-Object System.Drawing.Font("Consolas", 10)
 $rtb.BorderStyle = "FixedSingle"
-$rtb.Text        = ($statusLines -join "`r`n")
-$rtb.SelectAll()
-$rtb.SelectionColor = [System.Drawing.Color]::FromName($statusColor)
+$rtb.Text        = ""
+
+foreach ($line in $statusLines) {
+    $color = [System.Drawing.Color]::Black
+    if ($line -match '^\[OK\]')                         { $color = [System.Drawing.Color]::FromArgb(0, 128, 0) }
+    elseif ($line -match '^\[!\]')                      { $color = [System.Drawing.Color]::FromArgb(192, 0, 0) }
+    elseif ($line -match '^---')                        { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match '^Note:')                      { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match 'Download link is provided')   { $color = [System.Drawing.Color]::Gray }
+
+    $rtb.SelectionStart  = $rtb.TextLength
+    $rtb.SelectionLength = 0
+    $rtb.SelectionColor  = $color
+    $rtb.AppendText($line + "`r`n")
+}
 $rtb.SelectionStart  = 0
 $rtb.SelectionLength = 0
 $form.Controls.Add($rtb)
@@ -153,13 +175,13 @@ $form.Controls.Add($rtb)
 # URL label
 $urlLabel = New-Object System.Windows.Forms.Label
 $urlLabel.Text     = "Download link:"
-$urlLabel.Location = New-Object System.Drawing.Point(20, 390)
+$urlLabel.Location = New-Object System.Drawing.Point(20, 400)
 $urlLabel.Size     = New-Object System.Drawing.Size(100, 20)
 $form.Controls.Add($urlLabel)
 
 # URL TextBox
 $urlBox = New-Object System.Windows.Forms.TextBox
-$urlBox.Location  = New-Object System.Drawing.Point(120, 388)
+$urlBox.Location  = New-Object System.Drawing.Point(120, 398)
 $urlBox.Size      = New-Object System.Drawing.Size(565, 24)
 $urlBox.ReadOnly  = $true
 $urlBox.Font      = New-Object System.Drawing.Font("Consolas", 9)
@@ -170,7 +192,7 @@ $form.Controls.Add($urlBox)
 # Copy button
 $copyBtn = New-Object System.Windows.Forms.Button
 $copyBtn.Text     = "Copy link"
-$copyBtn.Location = New-Object System.Drawing.Point(120, 425)
+$copyBtn.Location = New-Object System.Drawing.Point(120, 435)
 $copyBtn.Size     = New-Object System.Drawing.Size(120, 32)
 $copyBtn.Enabled  = [bool]$fixUrl
 $copyBtn.Add_Click({
@@ -188,7 +210,7 @@ $form.Controls.Add($copyBtn)
 # Open button
 $openBtn = New-Object System.Windows.Forms.Button
 $openBtn.Text     = "Open in browser"
-$openBtn.Location = New-Object System.Drawing.Point(250, 425)
+$openBtn.Location = New-Object System.Drawing.Point(250, 435)
 $openBtn.Size     = New-Object System.Drawing.Size(140, 32)
 $openBtn.Enabled  = [bool]$fixUrl
 $openBtn.Add_Click({
@@ -198,16 +220,32 @@ $openBtn.Add_Click({
 })
 $form.Controls.Add($openBtn)
 
-# Re-run button (useful after installing the fix)
+# Re-check button
 $rerunBtn = New-Object System.Windows.Forms.Button
 $rerunBtn.Text     = "Re-check"
-$rerunBtn.Location = New-Object System.Drawing.Point(400, 425)
+$rerunBtn.Location = New-Object System.Drawing.Point(400, 435)
 $rerunBtn.Size     = New-Object System.Drawing.Size(100, 32)
 $rerunBtn.Add_Click({
-    $exePath = $MyInvocation.MyCommand.Path
-    if ($exePath) {
-        Start-Process $exePath
+    $exePath = $null
+    if ($PSCommandPath) {
+        $exePath = $PSCommandPath
+    }
+    elseif ([System.Reflection.Assembly]::GetEntryAssembly()) {
+        $entry = [System.Reflection.Assembly]::GetEntryAssembly()
+        if ($entry) {
+            $exePath = $entry.Location
+        }
+    }
+
+    if ($exePath -and (Test-Path $exePath)) {
+        Start-Process -FilePath $exePath
         $form.Close()
+    } else {
+        [System.Windows.Forms.MessageBox]::Show(
+            "Cannot restart automatically. Run Check-RdpPatch manually.",
+            "RDP Patch Check",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
     }
 })
 $form.Controls.Add($rerunBtn)
@@ -215,7 +253,7 @@ $form.Controls.Add($rerunBtn)
 # Close button
 $closeBtn = New-Object System.Windows.Forms.Button
 $closeBtn.Text     = "Close"
-$closeBtn.Location = New-Object System.Drawing.Point(585, 470)
+$closeBtn.Location = New-Object System.Drawing.Point(585, 480)
 $closeBtn.Size     = New-Object System.Drawing.Size(100, 32)
 $closeBtn.Add_Click({ $form.Close() })
 $form.Controls.Add($closeBtn)
@@ -225,7 +263,7 @@ $hint = New-Object System.Windows.Forms.Label
 $hint.Text      = "Fix must be installed manually from Microsoft Update Catalog, then reboot the system."
 $hint.ForeColor = [System.Drawing.Color]::Gray
 $hint.Font      = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Italic)
-$hint.Location  = New-Object System.Drawing.Point(20, 510)
+$hint.Location  = New-Object System.Drawing.Point(20, 525)
 $hint.Size      = New-Object System.Drawing.Size(660, 20)
 $form.Controls.Add($hint)
 

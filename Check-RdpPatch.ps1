@@ -12,7 +12,11 @@
     if the fix is required but not installed.
 
 .NOTES
-    Date: 2026-09-29
+    Author:  fixsys-spb
+    GitHub:  https://github.com/fixsys-spb/Operpatch
+    Date:    2026-09-30
+    Version: 1.0.1
+    License: Internal use
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
       Client: Windows 10 (1507..22H2, LTSC), Windows 11 (21H2..26H1)
@@ -95,6 +99,7 @@ if ($isServer) {
 if (-not $map.ContainsKey($build)) {
     Write-Warn "No patch info for build $build."
     Write-Warn "Supported builds: $($map.Keys -join ', ')"
+    Write-Dim "`nCheck-RdpPatch v1.0.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
     return
 }
 
@@ -118,10 +123,12 @@ if (-not $problemInstalled) {
     Write-Host ""
     Write-Dim ("Note: If Windows Update installs {0} later," -f $info.Problem)
     Write-Dim ("      you will need fix {0} to repair RDP." -f $info.Fix)
+    Write-Host ""
+    Write-Dim "Download link is provided in case the problem update arrives later."
 }
 elseif ($fixInstalled) {
     # --- Scenario B: problem installed + fix installed -> protected ---
-    Write-Err ("[!] Problem update {0} IS INSTALLED ({1})." -f `
+    Write-Warn ("[!] Problem update {0} IS INSTALLED ({1})." -f `
         $info.Problem, $problemInstalled.InstalledOn)
     Write-Host ""
     Write-Ok ("[OK] Fix {0} IS INSTALLED ({1})." -f `
@@ -135,7 +142,10 @@ else {
     Write-Err "    This is the cause of the RDP hang."
     Write-Host ""
     Write-Warn ("[!] Fix {0} is NOT installed. ACTION REQUIRED." -f $info.Fix)
+}
 
+# --- 5. Always show download link if fix exists ---
+if ($info.Fix) {
     $catalogUrl = "https://www.catalog.update.microsoft.com/Search.aspx?q=$($info.Fix)"
     Write-Host ""
     Write-Info "Download link (Microsoft Update Catalog):"
@@ -154,4 +164,6 @@ else {
     }
 }
 
+Write-Host ""
+Write-Dim "Check-RdpPatch v1.0.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
 Write-Host ""
