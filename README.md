@@ -128,7 +128,6 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 | `Check-RdpPatch.exe` | Ready-to-run GUI application |
 | `Check-RdpPatch-GUI.ps1` | GUI source |
 | `Check-RdpPatch.ps1` | Console version |
-| `build-exe.ps1` | EXE build script |
 | `Check-RdpPatch-screenshot.png` | Main window screenshot |
 | `Check-RdpPatch-screenshot2.png` | Screenshot: fix already installed |
 | `Check-RdpPatch-screenshot3.png` | Screenshot: update installing right now |
@@ -198,19 +197,7 @@ The GUI does not cover these systems yet. Use the console version `Check-RdpPatc
 Installer says the update is already installed.
 No second installation is needed. The fix is applied. Reboot the machine if you have not done so yet.
 
-## Build the EXE
 
-```
-.\build-exe.ps1
-```
-
-The version is taken from `CHANGELOG.md`. The icon comes from `icon.ico` next to the script.
-
-| Option | Purpose |
-|---|---|
-| `-Version X.Y.Z` | Override the version |
-| `-IconPath <path>` | Custom icon |
-| `-SkipInstall` | Do not install `ps2exe` |
 
 ## License
 
