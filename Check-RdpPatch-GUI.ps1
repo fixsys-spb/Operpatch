@@ -13,6 +13,9 @@
     Date:    2026-09-30
     Version: 1.0.1
     License: Internal use
+    Supports:
+      Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
+      Client: Windows 10 (1507..22H2, LTSC), Windows 11 (21H2..26H1)
 #>
 
 Add-Type -AssemblyName System.Windows.Forms

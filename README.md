@@ -1,124 +1,119 @@
+﻿**English** | [Русский](README.ru.md)
+
 # Check-RdpPatch
 
-Инструмент для проверки и лечения RDP-бага, появившегося после сентябрьских обновлений Windows 2026 года.
+A diagnostic tool for the RDP hang bug introduced by the September 2026 Windows cumulative updates.
 
-![Скриншот Check-RdpPatch](Check-RdpPatch-screenshot.png)
+![Check-RdpPatch screenshot](Check-RdpPatch-screenshot.png)
 
-## Инструкция к применению
+## How to use
 
-### Шаг 1. Скачайте и подготовьте файл
+### Step 1. Download and prepare
 
-- Скачайте `Check-RdpPatch.exe`.
-- Переместите его из папки «Загрузки» на рабочий стол. Если оставить в «Загрузках», Windows может заблокировать запуск.
-- Если при запуске появляется предупреждение SmartScreen — нажмите «Подробнее» → «Выполнить в любом случае».
+- Download `Check-RdpPatch.exe`.
+- Move it out of the **Downloads** folder — Windows may block the launch otherwise.
+- If SmartScreen appears, click **More info → Run anyway**.
 
-### Шаг 2. Запустите проверку
+### Step 2. Run the check
 
-- Двойной клик по `Check-RdpPatch.exe`.
-- Откроется окно с результатами.
+- Double-click `Check-RdpPatch.exe`.
+- A window with results will open.
 
-### Шаг 3. Прочитайте вердикт
+### Step 3. Read the verdict
 
-Инструмент покажет одно из трёх состояний:
+One of three states will be shown:
 
-| Что видите | Что это значит | Что делать |
+| What you see | What it means | What to do |
 |---|---|---|
-| «Problem update is NOT installed» | Баг ещё не пришёл на ваш ПК | Ничего. Следите за обновлениями |
-| «Fix IS installed» | Баг есть, но вы уже защищены | Ничего |
-| «Fix is NOT installed. ACTION REQUIRED» | Баг есть, защиты нет | Скачать патч (Шаг 4) |
+| "Problem update is NOT installed" | The bug has not reached this PC | Nothing. Keep an eye on updates |
+| "Fix IS installed" | The bug is present but already mitigated | Nothing |
+| "Fix is NOT installed. ACTION REQUIRED" | The bug is present, unprotected | Download the fix (Step 4) |
 
-### Шаг 4. Установите патч (если требуется)
+### Step 4. Install the fix (if required)
 
-1. В окне программы нажмите «Open in browser» — откроется каталог Microsoft.
-2. Найдите пакет для x64 и нажмите Download.
-3. Скопируйте актуальную ссылку на `.msu` — старые ссылки Microsoft быстро устаревают.
-4. Установите патч одним из способов.
-
-Через PowerShell:
+1. In the app window, click **Open in browser** — the Microsoft Update Catalog opens.
+2. Find the **x64** package and click **Download**.
+3. Copy the **current** `.msu` URL — Microsoft's dynamic links expire quickly.
+4. Install the fix. Either via PowerShell:
 
 ```
 Start-Process wusa.exe -ArgumentList "C:\Temp\KBxxxxxxx.msu /quiet /norestart" -Wait
 ```
 
-Или двойным кликом по скачанному `.msu`.
+Or by double-clicking the downloaded `.msu`.
 
-5. Проверьте установку:
+5. Verify the installation:
 
 ```
 Get-HotFix -Id KBxxxxxxx
 ```
 
-6. Обязательно перезагрузите компьютер. Без перезагрузки патч не работает.
+6. **Reboot the machine.** The fix does not take effect without a reboot.
 
-### Шаг 5. Перепроверьте
+### Step 5. Re-check
 
-Запустите `Check-RdpPatch.exe` снова. Вердикт должен измениться на «Fix IS installed».
+Run `Check-RdpPatch.exe` again. The verdict should now read "Fix IS installed".
 
-### Если патч уже установлен
+### If the fix is already installed
 
-Если вы запускаете установщик `.msu` повторно, Windows сообщит, что обновление уже установлено на этом компьютере. Это ожидаемое поведение — повторная установка не требуется и не нанесёт вреда системе.
+Running the `.msu` installer again will report that the update is already installed on this computer. This is expected — no second installation is needed, and it will not harm the system.
 
-![Патч уже установлен](Check-RdpPatch-screenshot2.png)
+![Fix already installed](Check-RdpPatch-screenshot2.png)
 
-## Что делать прямо сейчас
+## What to do right now
 
-Если проблемное обновление устанавливается прямо сейчас (в окне Windows Update отображается ход установки), действовать нужно быстро.
+If the problematic update is being installed right now (Windows Update shows the progress bar), act quickly.
 
-![Установка проблемного обновления идёт прямо сейчас](Check-RdpPatch-screenshot3.png)
+![Problem update is installing right now](Check-RdpPatch-screenshot3.png)
 
-### 1. Немедленно проверьте статус установки
+### 1. Immediately check the installation status
 
-Откройте PowerShell от имени администратора и выполните команду:
+Open PowerShell as Administrator and run:
 
 ```
 Get-HotFix -Id KB5122876
 ```
 
-- Если команда вернула информацию об обновлении — оно уже установлено. 
-  Переходите к пункту 2.
-- Если появилась ошибка «Не найдено» — обновление ещё не установилось. 
-  Возможно, оно находится в процессе или уже готово к перезагрузке. 
-  Переходите к пункту 3.
+- If the command returns information about the update — it is installed. Go to step 2.
+- If you get "Not found" — the update has not been applied yet. It may be in progress or waiting for a reboot. Go to step 3.
 
-### 2. Если обновление уже установлено — НЕ перезагружайте сервер
+### 2. If the update is installed — DO NOT reboot the server
 
-Это очень важно. Проблема с зависанием RDP часто проявляется после первой перезагрузки или выхода пользователя. 
-У вас есть временное окно, чтобы установить исправление до того, как баг проявится. 
-Немедленно переходите к установке патча KB5129238 с помощью Check-RdpPatch.
+This is important. The RDP hang typically appears after the first reboot or user logoff. You have a brief window to install the fix before the bug manifests. Proceed immediately with installing KB5129238 using Check-RdpPatch.
 
-### 3. Если обновление ещё не установлено — заблокируйте его
+### 3. If the update is not yet installed — block it
 
-Если есть возможность, лучше не устанавливать проблемное обновление вообще. Это самый безопасный путь.
+If possible, it is better not to install the problematic update at all. This is the safest path.
 
-- Через `sconfig`: запустите `sconfig` → выберите пункт 5 (Настройка параметров обновления) → нажмите M для переключения в ручной режим. Это остановит автоматическую установку.
-- Через WSUS или групповые политики: если в вашей сети есть WSUS, отклоните обновление KB5122876 для этой группы серверов. В доменной среде можно использовать групповые политики, чтобы заблокировать его установку.
-- Откат обновления: если обновление уже установлено, но сервер ещё не перезагружен, можно попробовать удалить его через `wusa /uninstall /kb:5122876`. Однако учтите, что это временная мера, и после перезагрузки может потребоваться повторная попытка.
+- Via `sconfig`: run `sconfig` → option 5 (Update settings) → press **M** to switch to manual mode. This stops automatic installation.
+- Via WSUS or Group Policy: if you have WSUS, decline KB5122876 for this server group. In a domain, use Group Policy to block its installation.
+- Rollback: if the update is installed but the server has not been rebooted yet, you can try removing it with `wusa /uninstall /kb:5122876`. Note this is a temporary measure — a reboot may be required afterwards.
 
-## Что делать, если RDP уже не отвечает
+## What to do if RDP is already unresponsive
 
-Если сервер завис и подключиться по RDP невозможно:
+If the server has hung and RDP connections fail:
 
-1. Жёсткая перезагрузка — единственное быстрое решение.
-2. Сразу после перезагрузки подключайтесь по RDP, пока проблема не вернулась.
-3. Установите патч (Шаг 4 выше) и перезагрузитесь ещё раз.
-4. Проверьте результат через `Check-RdpPatch.exe`.
+1. Hard reboot — the only fast solution.
+2. Right after the reboot, connect via RDP before the problem returns.
+3. Install the fix (Step 4 above) and reboot again.
+4. Verify the result with `Check-RdpPatch.exe`.
 
-Проблема возвращается после первого входа или выхода пользователя, поэтому действовать нужно быстро.
+The problem returns after the first user logon or logoff, so act fast.
 
-## Важные предупреждения
+## Important warnings
 
-- Перезагрузка обязательна. После установки патча RDP не заработает, пока вы не перезагрузитесь.
-- Проверьте очередь обновлений. Если проблемное обновление ещё не установлено, но стоит в списке будущих — установите исправление заранее.
-- Не торопитесь. Вчитайтесь в результат, который выдаёт программа.
+- Reboot is mandatory. After installing the fix, RDP will not recover until the machine is restarted.
+- Check the update queue. If the problematic update is not installed yet but is scheduled — install the fix in advance.
+- Do not rush. Read the tool's verdict carefully.
 
-## Что делает программа
+## What the tool does
 
-1. Определяет версию Windows.
-2. Проверяет, установлено ли проблемное обновление.
-3. Проверяет, установлено ли исправление.
-4. Показывает вердикт и ссылку на скачивание.
+1. Detects the Windows version.
+2. Checks whether the problematic update is installed.
+3. Checks whether the fix is installed.
+4. Prints the verdict and a download link.
 
-## Поддерживаемые системы
+## Supported systems
 
 Windows Server: 2012, 2012 R2, 2016, 2019, 2022, 2025.
 
@@ -126,101 +121,101 @@ Windows 10: 1507, 1511, 1607, 1703, 1709, 1803, 1809, 1903, 1909, 2004–22H2, L
 
 Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 
-## Файлы
+## Files
 
-| Файл | Назначение |
+| File | Purpose |
 |---|---|
-| `Check-RdpPatch.exe` | Готовое приложение с окном |
-| `Check-RdpPatch-GUI.ps1` | Исходник GUI-версии |
-| `Check-RdpPatch.ps1` | Консольная версия |
-| `build-exe.ps1` | Сборка EXE |
-| `Check-RdpPatch-screenshot.png` | Скриншот главного окна |
-| `Check-RdpPatch-screenshot2.png` | Скриншот: патч уже установлен |
-| `Check-RdpPatch-screenshot3.png` | Скриншот: установка идёт прямо сейчас |
-| `CHANGELOG.md` | История версий |
+| `Check-RdpPatch.exe` | Ready-to-run GUI application |
+| `Check-RdpPatch-GUI.ps1` | GUI source |
+| `Check-RdpPatch.ps1` | Console version |
+| `build-exe.ps1` | EXE build script |
+| `Check-RdpPatch-screenshot.png` | Main window screenshot |
+| `Check-RdpPatch-screenshot2.png` | Screenshot: fix already installed |
+| `Check-RdpPatch-screenshot3.png` | Screenshot: update installing right now |
+| `CHANGELOG.md` | Version history |
 
-## Требования
+## Requirements
 
-- PowerShell 5.1 или выше — встроен в Windows 10/11 и Server 2016+.
-- Обычные права пользователя. Админ не нужен.
+- PowerShell 5.1 or newer — bundled with Windows 10/11 and Server 2016+.
+- Standard user rights. Administrator is not required.
 
-Если PowerShell блокирует `.ps1`-скрипты:
+If PowerShell blocks `.ps1` scripts:
 
 ```
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-## Альтернативные способы запуска
+## Alternative launch methods
 
-Консольная версия:
+Console version:
 
 ```
 .\Check-RdpPatch.ps1
 ```
 
-Открыть ссылку в браузере сразу:
+Open the catalog link in the browser right away:
 
 ```
 .\Check-RdpPatch.ps1 -OpenLink
 ```
 
-GUI через PowerShell:
+GUI via PowerShell:
 
 ```
 .\Check-RdpPatch-GUI.ps1
 ```
 
-## Интерфейс программы
+## Application interface
 
-| Элемент | Что делает |
+| Element | Purpose |
 |---|---|
-| Поле вывода | Результаты проверки с цветовой подсветкой |
-| Download link | URL каталога Microsoft |
-| Copy link | Копирует ссылку в буфер обмена |
-| Open in browser | Открывает ссылку в браузере |
-| Re-check | Перезапускает проверку |
-| Close | Закрывает окно |
+| Output pane | Check results with color-coded verdict |
+| Download link | Microsoft Update Catalog URL |
+| Copy link | Copies the URL to the clipboard |
+| Open in browser | Opens the link in the default browser |
+| Re-check | Reruns the check |
+| Close | Closes the window |
 
-Кнопки ссылки неактивны, если патч не требуется.
+The link buttons are disabled when no fix is required.
 
-## Частые вопросы
+## FAQ
 
-SmartScreen блокирует запуск.
-Нажмите «Подробнее» → «Выполнить в любом случае». Либо разблокируйте файл: правый клик → Свойства → галочка «Разблокировать».
+SmartScreen blocks the launch.
+Click "More info" → "Run anyway". Alternatively, unblock the file: right-click → Properties → check "Unblock".
 
-Антивирус ругается на EXE.
-Некоторые антивирусы помечают EXE, собранные через PS2EXE, как подозрительные. Добавьте файл в исключения.
+Antivirus flags the EXE.
+Some antivirus products flag PS2EXE-built executables as suspicious. Add the file to exclusions.
 
-Get-HotFix возвращает пусто.
-Запустите PowerShell от имени администратора.
+`Get-HotFix` returns nothing.
+Run PowerShell as Administrator.
 
-Кодировка консоли — кракозябры.
-Вывод специально на английском, чтобы избежать проблем с CP866.
+Console encoding shows garbled characters.
+Output is deliberately in English to avoid CP866 issues.
 
-Server 2012 / 2012 R2 не работают в GUI.
-В GUI эти системы пока не поддержаны. Используйте консольную версию `Check-RdpPatch.ps1`.
+Server 2012 / 2012 R2 not supported in the GUI.
+The GUI does not cover these systems yet. Use the console version `Check-RdpPatch.ps1`.
 
-Установщик пишет, что обновление уже установлено.
-Повторная установка не требуется. Патч применён к системе. Перезагрузите компьютер, если ещё не сделали этого.
+Installer says the update is already installed.
+No second installation is needed. The fix is applied. Reboot the machine if you have not done so yet.
 
-## Сборка EXE
+## Build the EXE
 
 ```
 .\build-exe.ps1
 ```
 
-Версия берётся из `CHANGELOG.md`. Иконка — из `icon.ico` рядом со скриптом.
+The version is taken from `CHANGELOG.md`. The icon comes from `icon.ico` next to the script.
 
-| Ключ | Назначение |
+| Option | Purpose |
 |---|---|
-| `-Version X.Y.Z` | Переопределить версию |
-| `-IconPath <path>` | Своя иконка |
-| `-SkipInstall` | Не устанавливать `ps2exe` |
+| `-Version X.Y.Z` | Override the version |
+| `-IconPath <path>` | Custom icon |
+| `-SkipInstall` | Do not install `ps2exe` |
 
-## Лицензия
+## License
 
-Внутренний инструмент. Свободен для использования и модификации внутри инфраструктуры.
+Internal tool. Free to use and modify within the infrastructure.
 
 ## CHANGELOG
 
-См. [CHANGELOG.md](CHANGELOG.md).
+See [CHANGELOG.md](CHANGELOG.md).
