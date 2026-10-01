@@ -15,9 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Network mode: scan a list of servers via `Invoke-Command`.
 - CSV report export.
 - Watch mode (`-Watch`).
-- Server 2012 / 2012 R2 support in the GUI (already works in the console version
+- Server 2012 / 2012 R2 support in the GUI (already works in the console version).
 
 ---
+
 ## [1.0.4] — 2026-10-01
 
 ### Fixed
@@ -59,16 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [1.0.3] — 2026-10-01
 
 ### Fixed
-- KB detection now uses the **Registry UBR** as the primary source. Bundled SSU+LCU
-  packages are invisible to `Get-HotFix`, WUA COM history, and DISM by KB number,
-  which caused false "not installed" verdicts on Windows Server 2022 (UBR 5622/5631)
-  and other builds.
+- KB detection now uses the **Registry UBR** as the primary source. Bundled
+  SSU+LCU packages are invisible to `Get-HotFix`, WUA COM history, and DISM
+  by KB number, which caused false "not installed" verdicts on Windows
+  Server 2022 (UBR 5622/5631) and other builds.
 - Detection now reports its source (`via Registry UBR`, `via Get-HotFix`,
   `via WUA History`, `via DISM`, or `via Get-WindowsPackage`).
 
 ### Added
-- `ProblemUbr` and `FixUbr` fields in both patch maps — numeric build revisions
-  for precise comparison.
+- `ProblemUbr` and `FixUbr` fields in both patch maps — numeric build
+  revisions for precise comparison.
 - UBR value is now shown in the header of the console and GUI output.
 
 ### Verified
@@ -80,23 +81,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [1.0.2] — 2026-09-30
 
 ### Added
-- README: screenshot of the "system protected" verdict (`Check-RdpPatch-screenshot4.png`).
+- README: screenshot of the "system protected" state (`Check-RdpPatch-screenshot4.png`).
 
 ### Fixed
-- KB detection now uses three independent sources...
-
-### Changed
-- Verdict now reports the detection source...
-
-### Fixed
-- KB detection now uses three independent sources: `Get-HotFix`, WUA COM history, and DISM.
-  Bundled SSU+LCU packages were previously invisible to `Get-HotFix` alone, causing false
-  "not installed" verdicts on Windows Server 2022 and other builds.
-
-### Fixed
-- KB detection now uses three independent sources: `Get-HotFix`, WUA COM history, and DISM.
-  Bundled SSU+LCU packages were previously invisible to `Get-HotFix` alone, causing false
-  "not installed" verdicts on Windows Server 2022 and other builds.
+- KB detection now uses three independent sources: `Get-HotFix`,
+  WUA COM history, and DISM. Bundled SSU+LCU packages were previously
+  invisible to `Get-HotFix`, which produced false "not installed" verdicts
+  on Windows Server 2022 and other builds.
+- Verdict now reports the detection source used to identify each KB.
 
 ---
 
