@@ -11,6 +11,9 @@
 
 ## [Unreleased]
 
+### Added
+- README: скриншот "проблема с RDP устранена" (`Check-RdpPatch-screenshot4.png`).
+
 ---
 
 ### Планируется

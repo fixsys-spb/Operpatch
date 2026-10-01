@@ -32,6 +32,10 @@
 | «Fix IS installed» | Баг есть, но вы уже защищены | Ничего |
 | «Fix is NOT installed. ACTION REQUIRED» | Баг есть, защиты нет | Скачать патч (Шаг 4) |
 
+Когда проблемное обновление и исправление установлены, инструмент подтверждает защиту. Источник детекции указывается (`via WUA History`, `via Get-HotFix` или `via DISM`):
+
+![Система защищена](Check-RdpPatch-screenshot4.png)
+
 ### Шаг 4. Установите патч (если требуется)
 
 1. В окне программы нажмите «Open in browser» — откроется каталог Microsoft.
@@ -134,6 +138,7 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 | `Check-RdpPatch-screenshot.png` | Скриншот главного окна |
 | `Check-RdpPatch-screenshot2.png` | Скриншот: патч уже установлен |
 | `Check-RdpPatch-screenshot3.png` | Скриншот: установка идёт прямо сейчас |
+| Check-RdpPatch-screenshot4.png | Скриншот: проблема с RDP устранена |
 | `CHANGELOG.md` | История версий |
 
 ## Требования

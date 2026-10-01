@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- README: screenshot of the "system protected" verdict (`Check-RdpPatch-screenshot4.png`).
+
 ---
 
 ## [1.0.2] — 2026-09-30

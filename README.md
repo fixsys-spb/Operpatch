@@ -32,6 +32,10 @@ One of three states will be shown:
 | "Fix IS installed" | The bug is present but already mitigated | Nothing |
 | "Fix is NOT installed. ACTION REQUIRED" | The bug is present, unprotected | Download the fix (Step 4) |
 
+When the problematic update and its fix are both installed, the verdict confirms the system is protected. Detection reports the source (`via WUA History`, `via Get-HotFix`, or `via DISM`):
+
+![System protected](Check-RdpPatch-screenshot4.png)
+
 ### Step 4. Install the fix (if required)
 
 1. In the app window, click **Open in browser** — the Microsoft Update Catalog opens.
@@ -134,6 +138,7 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 | `Check-RdpPatch-screenshot.png` | Main window screenshot |
 | `Check-RdpPatch-screenshot2.png` | Screenshot: fix already installed |
 | `Check-RdpPatch-screenshot3.png` | Screenshot: update installing right now |
+| Check-RdpPatch-screenshot4.png | Screenshot: system protected |
 | `CHANGELOG.md` | Version history |
 
 ## Requirements
