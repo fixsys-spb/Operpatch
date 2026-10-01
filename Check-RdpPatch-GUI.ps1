@@ -7,16 +7,13 @@
     Shows status, Microsoft Update Catalog link
     with "Copy link" and "Open in browser" buttons.
 
-    KB detection uses three sources:
-      1. Get-HotFix
-      2. WUA COM history
-      3. DISM
+    Detection uses five sources, with Registry UBR as primary.
 
 .NOTES
     Author:  fixsys-spb
     GitHub:  https://github.com/fixsys-spb/Operpatch
-    Date:    2026-09-30
-    Version: 1.0.2
+    Date:    2026-10-01
+    Version: 1.0.3
     License: MIT (see LICENSE)
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
@@ -27,24 +24,35 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
-# ---------- Robust KB detection ----------
+# ---------- Get current UBR ----------
+function Get-CurrentUbr {
+    try {
+        return (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop).UBR
+    } catch {
+        return $null
+    }
+}
+
+# ---------- Multi-source KB detection ----------
 function Test-KbInstalled {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string]$KbId
+        [Parameter(Mandatory)][string]$KbId,
+        [int]$TargetUbr = 0
     )
 
-    # Method 1: Get-HotFix
-    $hotfix = Get-HotFix -Id $KbId -ErrorAction SilentlyContinue
-    if ($hotfix) {
-        return [PSCustomObject]@{
-            Installed = $true
-            Source    = 'Get-HotFix'
-            Date      = $hotfix.InstalledOn
+    if ($TargetUbr -gt 0) {
+        $currentUbr = Get-CurrentUbr
+        if ($null -ne $currentUbr -and $currentUbr -ge $TargetUbr) {
+            return [PSCustomObject]@{ Installed = $true; Source = 'Registry UBR'; Date = $null }
         }
     }
 
-    # Method 2: WUA COM history
+    $hotfix = Get-HotFix -Id $KbId -ErrorAction SilentlyContinue
+    if ($hotfix) {
+        return [PSCustomObject]@{ Installed = $true; Source = 'Get-HotFix'; Date = $hotfix.InstalledOn }
+    }
+
     try {
         $session  = New-Object -ComObject Microsoft.Update.Session
         $searcher = $session.CreateUpdateSearcher()
@@ -55,65 +63,61 @@ function Test-KbInstalled {
             $match      = $history | Where-Object { $_.Title -match $KbId } |
                           Sort-Object Date -Descending | Select-Object -First 1
             if ($match) {
-                return [PSCustomObject]@{
-                    Installed = $true
-                    Source    = 'WUA History'
-                    Date      = $match.Date
-                }
+                return [PSCustomObject]@{ Installed = $true; Source = 'WUA History'; Date = $match.Date }
             }
         }
     } catch { }
 
-    # Method 3: DISM
     try {
         $dismOutput = & dism.exe /online /get-packages 2>$null
         if ($dismOutput -match $KbId) {
-            return [PSCustomObject]@{
-                Installed = $true
-                Source    = 'DISM'
-                Date      = $null
-            }
+            return [PSCustomObject]@{ Installed = $true; Source = 'DISM'; Date = $null }
         }
     } catch { }
 
-    return [PSCustomObject]@{
-        Installed = $false
-        Source    = 'none'
-        Date      = $null
-    }
+    try {
+        $pkg = Get-WindowsPackage -Online -ErrorAction SilentlyContinue |
+               Where-Object { $_.PackageName -match 'RollupFix' -and $_.PackageState -eq 'Installed' } |
+               Select-Object -First 1
+        if ($pkg) {
+            return [PSCustomObject]@{ Installed = $true; Source = 'Get-WindowsPackage'; Date = $null }
+        }
+    } catch { }
+
+    return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
 }
 
 # ---------- Patch maps ----------
 $ServerPatchMap = @{
-    9200  = @{ OS = "Windows Server 2012";       Problem = "KB5123065"; Fix = "KB5129244" }
-    9600  = @{ OS = "Windows Server 2012 R2";    Problem = "KB5123066"; Fix = "KB5129243" }
-    14393 = @{ OS = "Windows Server 2016";       Problem = "KB5123099"; Fix = "KB5129239" }
-    17763 = @{ OS = "Windows Server 2019";       Problem = "KB5122876"; Fix = "KB5129238" }
-    20348 = @{ OS = "Windows Server 2022";       Problem = "KB5122882"; Fix = "KB5129237" }
-    26100 = @{ OS = "Windows Server 2025";       Problem = "KB5122871"; Fix = "KB5129235" }
+    9200  = @{ OS = "Windows Server 2012";       Problem = "KB5123065"; Fix = "KB5129244"; ProblemUbr = 0;     FixUbr = 0 }
+    9600  = @{ OS = "Windows Server 2012 R2";    Problem = "KB5123066"; Fix = "KB5129243"; ProblemUbr = 0;     FixUbr = 0 }
+    14393 = @{ OS = "Windows Server 2016";       Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 9512;  FixUbr = 9514 }
+    17763 = @{ OS = "Windows Server 2019";       Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245;  FixUbr = 9247 }
+    20348 = @{ OS = "Windows Server 2022";       Problem = "KB5122882"; Fix = "KB5129237"; ProblemUbr = 5622;  FixUbr = 5631 }
+    26100 = @{ OS = "Windows Server 2025";       Problem = "KB5122871"; Fix = "KB5129235"; ProblemUbr = 33438; FixUbr = 33451 }
 }
 
 $ClientPatchMap = @{
-    10240 = @{ OS = "Windows 10 1507 / LTSB 2015";                 Problem = "KB5123099"; Fix = "KB5129239" }
-    10586 = @{ OS = "Windows 10 1511";                             Problem = "KB5123099"; Fix = "KB5129239" }
-    14393 = @{ OS = "Windows 10 1607 / LTSB 2016";                 Problem = "KB5123099"; Fix = "KB5129239" }
-    15063 = @{ OS = "Windows 10 1703";                             Problem = "KB5122878"; Fix = "KB5129236" }
-    16299 = @{ OS = "Windows 10 1709";                             Problem = "KB5122878"; Fix = "KB5129236" }
-    17134 = @{ OS = "Windows 10 1803";                             Problem = "KB5122878"; Fix = "KB5129236" }
-    17763 = @{ OS = "Windows 10 1809 / LTSC 2019";                 Problem = "KB5122876"; Fix = "KB5129238" }
-    18362 = @{ OS = "Windows 10 1903";                             Problem = "KB5122878"; Fix = "KB5129236" }
-    18363 = @{ OS = "Windows 10 1909";                             Problem = "KB5122878"; Fix = "KB5129236" }
-    19041 = @{ OS = "Windows 10 2004 / 20H2 / 21H1 / 21H2 / 22H2"; Problem = "KB5122878"; Fix = "KB5129236" }
-    19042 = @{ OS = "Windows 10 20H2";                             Problem = "KB5122878"; Fix = "KB5129236" }
-    19043 = @{ OS = "Windows 10 21H1";                             Problem = "KB5122878"; Fix = "KB5129236" }
-    19044 = @{ OS = "Windows 10 21H2";                             Problem = "KB5122878"; Fix = "KB5129236" }
-    19045 = @{ OS = "Windows 10 22H2";                             Problem = "KB5122878"; Fix = "KB5129236" }
-    22000 = @{ OS = "Windows 11 21H2";                             Problem = "KB5122880"; Fix = "KB5129242" }
-    22621 = @{ OS = "Windows 11 22H2";                             Problem = "KB5122880"; Fix = "KB5129242" }
-    22631 = @{ OS = "Windows 11 23H2";                             Problem = "KB5122880"; Fix = "KB5129242" }
-    26100 = @{ OS = "Windows 11 24H2";                             Problem = "KB5124008"; Fix = "KB5129195" }
-    26200 = @{ OS = "Windows 11 25H2";                             Problem = "KB5124008"; Fix = "KB5129195" }
-    27695 = @{ OS = "Windows 11 26H1";                             Problem = "KB5124012"; Fix = "KB5129194" }
+    10240 = @{ OS = "Windows 10 1507 / LTSB 2015";                 Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;     FixUbr = 0 }
+    10586 = @{ OS = "Windows 10 1511";                             Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;     FixUbr = 0 }
+    14393 = @{ OS = "Windows 10 1607 / LTSB 2016";                 Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 9512;  FixUbr = 9514 }
+    15063 = @{ OS = "Windows 10 1703";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
+    16299 = @{ OS = "Windows 10 1709";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
+    17134 = @{ OS = "Windows 10 1803";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
+    17763 = @{ OS = "Windows 10 1809 / LTSC 2019";                 Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245;  FixUbr = 9247 }
+    18362 = @{ OS = "Windows 10 1903";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
+    18363 = @{ OS = "Windows 10 1909";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
+    19041 = @{ OS = "Windows 10 2004 / 20H2 / 21H1 / 21H2 / 22H2"; Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
+    19042 = @{ OS = "Windows 10 20H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
+    19043 = @{ OS = "Windows 10 21H1";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
+    19044 = @{ OS = "Windows 10 21H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
+    19045 = @{ OS = "Windows 10 22H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
+    22000 = @{ OS = "Windows 11 21H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0;     FixUbr = 0 }
+    22621 = @{ OS = "Windows 11 22H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0;     FixUbr = 0 }
+    22631 = @{ OS = "Windows 11 23H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0;     FixUbr = 0 }
+    26100 = @{ OS = "Windows 11 24H2";                             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 0;     FixUbr = 0 }
+    26200 = @{ OS = "Windows 11 25H2";                             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 0;     FixUbr = 0 }
+    27695 = @{ OS = "Windows 11 26H1";                             Problem = "KB5124012"; Fix = "KB5129194"; ProblemUbr = 0;     FixUbr = 0 }
 }
 
 # ---------- Detection ----------
@@ -122,6 +126,7 @@ $os       = Get-CimInstance Win32_OperatingSystem |
 $build    = [int]$os.BuildNumber
 $isServer = $os.Caption -match "Server"
 $map      = if ($isServer) { $ServerPatchMap } else { $ClientPatchMap }
+$currentUbr = Get-CurrentUbr
 
 $statusLines = New-Object System.Collections.ArrayList
 $fixUrl      = ""
@@ -130,6 +135,9 @@ $fixUrl      = ""
 [void]$statusLines.Add(("Version:      {0}" -f $os.Version))
 [void]$statusLines.Add(("Build:        {0}" -f $build))
 [void]$statusLines.Add(("Architecture: {0}" -f $os.OSArchitecture))
+if ($null -ne $currentUbr) {
+    [void]$statusLines.Add(("UBR:          {0}" -f $currentUbr))
+}
 [void]$statusLines.Add("")
 [void]$statusLines.Add(("Detected:     {0} OS" -f $(if ($isServer) { "Server" } else { "Client" })))
 
@@ -141,8 +149,8 @@ else {
     $info    = $map[$build]
     $fixUrl  = "https://www.catalog.update.microsoft.com/Search.aspx?q=$($info.Fix)"
 
-    $problemCheck = Test-KbInstalled -KbId $info.Problem
-    $fixCheck     = Test-KbInstalled -KbId $info.Fix
+    $problemCheck = Test-KbInstalled -KbId $info.Problem -TargetUbr $info.ProblemUbr
+    $fixCheck     = Test-KbInstalled -KbId $info.Fix     -TargetUbr $info.FixUbr
 
     [void]$statusLines.Add(("Target OS:    {0}" -f $info.OS))
     [void]$statusLines.Add(("Problem KB:   {0}" -f $info.Problem))
@@ -174,7 +182,7 @@ else {
 # ---------- Form ----------
 $form = New-Object System.Windows.Forms.Form
 $form.Text            = "RDP Patch Check — September 2026"
-$form.Size            = New-Object System.Drawing.Size(720, 600)
+$form.Size            = New-Object System.Drawing.Size(720, 620)
 $form.StartPosition   = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox     = $false
@@ -182,7 +190,6 @@ $form.MinimizeBox     = $false
 $form.BackColor       = [System.Drawing.Color]::FromArgb(248, 248, 250)
 $form.Font            = New-Object System.Drawing.Font("Segoe UI", 9)
 
-# Title
 $title = New-Object System.Windows.Forms.Label
 $title.Text     = "RDP Patch Check"
 $title.Font     = New-Object System.Drawing.Font("Segoe UI", 15, [System.Drawing.FontStyle]::Bold)
@@ -190,7 +197,6 @@ $title.Location = New-Object System.Drawing.Point(20, 15)
 $title.Size     = New-Object System.Drawing.Size(400, 30)
 $form.Controls.Add($title)
 
-# Subtitle
 $subtitle = New-Object System.Windows.Forms.Label
 $subtitle.Text      = "Bug introduced by September 2026 cumulative updates"
 $subtitle.Font      = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Italic)
@@ -199,7 +205,6 @@ $subtitle.Location  = New-Object System.Drawing.Point(22, 45)
 $subtitle.Size      = New-Object System.Drawing.Size(600, 20)
 $form.Controls.Add($subtitle)
 
-# Author line
 $author = New-Object System.Windows.Forms.Label
 $author.Text      = "(c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
 $author.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
@@ -208,10 +213,9 @@ $author.Location  = New-Object System.Drawing.Point(22, 63)
 $author.Size      = New-Object System.Drawing.Size(600, 16)
 $form.Controls.Add($author)
 
-# Output RichTextBox with line-by-line coloring
 $rtb = New-Object System.Windows.Forms.RichTextBox
 $rtb.Location    = New-Object System.Drawing.Point(20, 85)
-$rtb.Size        = New-Object System.Drawing.Size(665, 290)
+$rtb.Size        = New-Object System.Drawing.Size(665, 310)
 $rtb.ReadOnly    = $true
 $rtb.BackColor   = [System.Drawing.Color]::White
 $rtb.ForeColor   = [System.Drawing.Color]::Black
@@ -236,16 +240,14 @@ $rtb.SelectionStart  = 0
 $rtb.SelectionLength = 0
 $form.Controls.Add($rtb)
 
-# URL label
 $urlLabel = New-Object System.Windows.Forms.Label
 $urlLabel.Text     = "Download link:"
-$urlLabel.Location = New-Object System.Drawing.Point(20, 400)
+$urlLabel.Location = New-Object System.Drawing.Point(20, 420)
 $urlLabel.Size     = New-Object System.Drawing.Size(100, 20)
 $form.Controls.Add($urlLabel)
 
-# URL TextBox
 $urlBox = New-Object System.Windows.Forms.TextBox
-$urlBox.Location  = New-Object System.Drawing.Point(120, 398)
+$urlBox.Location  = New-Object System.Drawing.Point(120, 418)
 $urlBox.Size      = New-Object System.Drawing.Size(565, 24)
 $urlBox.ReadOnly  = $true
 $urlBox.Font      = New-Object System.Drawing.Font("Consolas", 9)
@@ -253,10 +255,9 @@ $urlBox.Text      = $fixUrl
 $urlBox.BackColor = [System.Drawing.Color]::White
 $form.Controls.Add($urlBox)
 
-# Copy button
 $copyBtn = New-Object System.Windows.Forms.Button
 $copyBtn.Text     = "Copy link"
-$copyBtn.Location = New-Object System.Drawing.Point(120, 435)
+$copyBtn.Location = New-Object System.Drawing.Point(120, 455)
 $copyBtn.Size     = New-Object System.Drawing.Size(120, 32)
 $copyBtn.Enabled  = [bool]$fixUrl
 $copyBtn.Add_Click({
@@ -271,10 +272,9 @@ $copyBtn.Add_Click({
 })
 $form.Controls.Add($copyBtn)
 
-# Open button
 $openBtn = New-Object System.Windows.Forms.Button
 $openBtn.Text     = "Open in browser"
-$openBtn.Location = New-Object System.Drawing.Point(250, 435)
+$openBtn.Location = New-Object System.Drawing.Point(250, 455)
 $openBtn.Size     = New-Object System.Drawing.Size(140, 32)
 $openBtn.Enabled  = [bool]$fixUrl
 $openBtn.Add_Click({
@@ -284,10 +284,9 @@ $openBtn.Add_Click({
 })
 $form.Controls.Add($openBtn)
 
-# Re-check button
 $rerunBtn = New-Object System.Windows.Forms.Button
 $rerunBtn.Text     = "Re-check"
-$rerunBtn.Location = New-Object System.Drawing.Point(400, 435)
+$rerunBtn.Location = New-Object System.Drawing.Point(400, 455)
 $rerunBtn.Size     = New-Object System.Drawing.Size(100, 32)
 $rerunBtn.Add_Click({
     $exePath = $null
@@ -314,22 +313,19 @@ $rerunBtn.Add_Click({
 })
 $form.Controls.Add($rerunBtn)
 
-# Close button
 $closeBtn = New-Object System.Windows.Forms.Button
 $closeBtn.Text     = "Close"
-$closeBtn.Location = New-Object System.Drawing.Point(585, 480)
+$closeBtn.Location = New-Object System.Drawing.Point(585, 500)
 $closeBtn.Size     = New-Object System.Drawing.Size(100, 32)
 $closeBtn.Add_Click({ $form.Close() })
 $form.Controls.Add($closeBtn)
 
-# Bottom hint
 $hint = New-Object System.Windows.Forms.Label
 $hint.Text      = "Fix must be installed manually from Microsoft Update Catalog, then reboot the system."
 $hint.ForeColor = [System.Drawing.Color]::Gray
 $hint.Font      = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Italic)
-$hint.Location  = New-Object System.Drawing.Point(20, 525)
+$hint.Location  = New-Object System.Drawing.Point(20, 545)
 $hint.Size      = New-Object System.Drawing.Size(660, 20)
 $form.Controls.Add($hint)
 
-# Run
 [void]$form.ShowDialog()

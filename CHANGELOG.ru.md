@@ -11,6 +11,12 @@
 
 ## [Unreleased]
 
+### Fixed
+- KB detection now uses Registry UBR as primary source. Bundled SSU+LCU packages
+  were invisible to Get-HotFix, WUA COM history, and DISM by KB number, causing
+  false "not installed" verdicts on Windows Server 2022 (UBR 5622/5631) and
+  other builds.
+
 ### Added
 - README: скриншот "проблема с RDP устранена" (`Check-RdpPatch-screenshot4.png`).
 
