@@ -7,13 +7,20 @@
     Shows status, Microsoft Update Catalog link
     with "Copy link" and "Open in browser" buttons.
 
-     Detection uses four sources, with Registry UBR as primary.
+    Detection uses four sources, with Registry UBR as primary:
+      1. Registry UBR        — sees LCU/SSU bundles
+      2. Get-HotFix          — classic QFE/KB list
+      3. WUA COM history     — Microsoft.Update.Session installation log
+      4. DISM package match  — legacy KB package names
+
+    ProductType is used for accurate Server vs. Client detection,
+    independent of OS caption localization.
 
 .NOTES
     Author:  fixsys-spb
     GitHub:  https://github.com/fixsys-spb/Operpatch
     Date:    2026-10-01
-    Version: 1.0.4
+    Version: 1.1.0
     License: MIT (see LICENSE)
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
@@ -24,12 +31,27 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
-# ---------- Get current UBR ----------
+# ---------- Get current UBR from registry ----------
 function Get-CurrentUbr {
     try {
-        return (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop).UBR
+        $ubr = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop).UBR
+        if ($null -ne $ubr -and $ubr -is [int]) {
+            return $ubr
+        }
+        return $null
     } catch {
         return $null
+    }
+}
+
+# ---------- Get OS ProductType for reliable Server/Client detection ----------
+# ProductType: 1 = Workstation, 2 = Domain Controller, 3 = Server
+function Get-OsProductType {
+    try {
+        $cim = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+        return [int]$cim.ProductType
+    } catch {
+        return 0
     }
 }
 
@@ -41,6 +63,11 @@ function Test-KbInstalled {
         [int]$TargetUbr = 0
     )
 
+    if ($KbId -notmatch '^KB\d+$') {
+        return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
+    }
+
+    # Method 1: Registry UBR
     if ($TargetUbr -gt 0) {
         $currentUbr = Get-CurrentUbr
         if ($null -ne $currentUbr -and $currentUbr -ge $TargetUbr) {
@@ -48,29 +75,47 @@ function Test-KbInstalled {
         }
     }
 
-    $hotfix = Get-HotFix -Id $KbId -ErrorAction SilentlyContinue
-    if ($hotfix) {
-        return [PSCustomObject]@{ Installed = $true; Source = 'Get-HotFix'; Date = $hotfix.InstalledOn }
-    }
-
+    # Method 2: Get-HotFix
     try {
-        $session  = New-Object -ComObject Microsoft.Update.Session
+        $hotfix = Get-HotFix -Id $KbId -ErrorAction SilentlyContinue
+        if ($hotfix) {
+            $installDate = $null
+            if ($hotfix.InstalledOn) {
+                $installDate = [datetime]$hotfix.InstalledOn
+            }
+            return [PSCustomObject]@{ Installed = $true; Source = 'Get-HotFix'; Date = $installDate }
+        }
+    } catch { }
+
+    # Method 3: WUA COM history
+    try {
+        $session  = New-Object -ComObject Microsoft.Update.Session -ErrorAction Stop
         $searcher = $session.CreateUpdateSearcher()
         $total    = $searcher.GetTotalHistoryCount()
+
         if ($total -gt 0) {
-            $maxRecords = [Math]::Min($total, 500)
+            $maxRecords = [Math]::Min($total, 1000)
             $history    = $searcher.QueryHistory(0, $maxRecords)
-            $match      = $history | Where-Object { $_.Title -match $KbId } |
-                          Sort-Object Date -Descending | Select-Object -First 1
+
+            $match = $history |
+                     Where-Object { $_.Title -match [regex]::Escape($KbId) } |
+                     Sort-Object Date -Descending |
+                     Select-Object -First 1
+
             if ($match) {
-                return [PSCustomObject]@{ Installed = $true; Source = 'WUA History'; Date = $match.Date }
+                $instDate = $null
+                if ($match.Date) {
+                    $instDate = [datetime]$match.Date
+                }
+                return [PSCustomObject]@{ Installed = $true; Source = 'WUA History'; Date = $instDate }
             }
         }
     } catch { }
 
+    # Method 4: DISM package name match (legacy packages only)
     try {
         $dismOutput = & dism.exe /online /get-packages 2>$null
-        if ($dismOutput -match $KbId) {
+        if ($dismOutput -and $dismOutput -match "Package_for_$([regex]::Escape($KbId))\b") {
             return [PSCustomObject]@{ Installed = $true; Source = 'DISM'; Date = $null }
         }
     } catch { }
@@ -80,7 +125,7 @@ function Test-KbInstalled {
 
 # --- Patch map: Server OS ---
 # UBR values: 0 means "not verified, skip UBR-based detection".
-# Verified: Server 2019 (9245/9247), Server 2022 (5622/5631), Server 2016 fix (9339).
+# Verified: Server 2016 (fix 9339), Server 2019 (9245/9247), Server 2022 (5622/5631).
 $ServerPatchMap = @{
     9200  = @{ OS = "Windows Server 2012";    Problem = "KB5123065"; Fix = "KB5129244"; ProblemUbr = 0;    FixUbr = 0 }
     9600  = @{ OS = "Windows Server 2012 R2"; Problem = "KB5123066"; Fix = "KB5129243"; ProblemUbr = 0;    FixUbr = 0 }
@@ -91,7 +136,6 @@ $ServerPatchMap = @{
 }
 
 # --- Patch map: Client OS ---
-# Only Server-side UBR values are verified. Client-side UBRs disabled (0) until confirmed.
 $ClientPatchMap = @{
     10240 = @{ OS = "Windows 10 1507 / LTSB 2015";                 Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0; FixUbr = 0 }
     10586 = @{ OS = "Windows 10 1511";                             Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0; FixUbr = 0 }
@@ -119,7 +163,8 @@ $ClientPatchMap = @{
 $os       = Get-CimInstance Win32_OperatingSystem |
             Select-Object Caption, Version, BuildNumber, OSArchitecture
 $build    = [int]$os.BuildNumber
-$isServer = $os.Caption -match "Server"
+$productType = Get-OsProductType
+$isServer = ($productType -eq 2) -or ($productType -eq 3)
 $map      = if ($isServer) { $ServerPatchMap } else { $ClientPatchMap }
 $currentUbr = Get-CurrentUbr
 
@@ -134,11 +179,16 @@ if ($null -ne $currentUbr) {
     [void]$statusLines.Add(("UBR:          {0}" -f $currentUbr))
 }
 [void]$statusLines.Add("")
-[void]$statusLines.Add(("Detected:     {0} OS" -f $(if ($isServer) { "Server" } else { "Client" })))
+[void]$statusLines.Add(("Detected:     {0} OS (ProductType: {1})" -f $(if ($isServer) { "Server" } else { "Client" }), $productType))
 
 if (-not $map.ContainsKey($build)) {
     [void]$statusLines.Add("")
     [void]$statusLines.Add("No patch info for build $build.")
+    [void]$statusLines.Add("")
+    [void]$statusLines.Add("This build may be:")
+    [void]$statusLines.Add("  - Not yet affected by the RDP bug")
+    [void]$statusLines.Add("  - Covered by a different patch timeline")
+    [void]$statusLines.Add("  - A preview / insider build")
 }
 else {
     $info    = $map[$build]
@@ -159,8 +209,6 @@ else {
         [void]$statusLines.Add("")
         [void]$statusLines.Add(("Note: if Windows Update installs {0} later," -f $info.Problem))
         [void]$statusLines.Add(("      you will need fix {0}." -f $info.Fix))
-        [void]$statusLines.Add("")
-        [void]$statusLines.Add("Download link is provided in case the problem arrives later.")
     }
     elseif ($fixCheck.Installed) {
         [void]$statusLines.Add(("[!] Problem update IS installed (via {0})." -f $problemCheck.Source))
@@ -185,6 +233,7 @@ $form.MinimizeBox     = $false
 $form.BackColor       = [System.Drawing.Color]::FromArgb(248, 248, 250)
 $form.Font            = New-Object System.Drawing.Font("Segoe UI", 9)
 
+# Title
 $title = New-Object System.Windows.Forms.Label
 $title.Text     = "RDP Patch Check"
 $title.Font     = New-Object System.Drawing.Font("Segoe UI", 15, [System.Drawing.FontStyle]::Bold)
@@ -192,6 +241,7 @@ $title.Location = New-Object System.Drawing.Point(20, 15)
 $title.Size     = New-Object System.Drawing.Size(400, 30)
 $form.Controls.Add($title)
 
+# Subtitle
 $subtitle = New-Object System.Windows.Forms.Label
 $subtitle.Text      = "Bug introduced by September 2026 cumulative updates"
 $subtitle.Font      = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Italic)
@@ -200,14 +250,16 @@ $subtitle.Location  = New-Object System.Drawing.Point(22, 45)
 $subtitle.Size      = New-Object System.Drawing.Size(600, 20)
 $form.Controls.Add($subtitle)
 
+# Author line
 $author = New-Object System.Windows.Forms.Label
-$author.Text      = "(c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+$author.Text      = "v1.1.0  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
 $author.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
 $author.ForeColor = [System.Drawing.Color]::Gray
 $author.Location  = New-Object System.Drawing.Point(22, 63)
 $author.Size      = New-Object System.Drawing.Size(600, 16)
 $form.Controls.Add($author)
 
+# Output RichTextBox with line-by-line coloring
 $rtb = New-Object System.Windows.Forms.RichTextBox
 $rtb.Location    = New-Object System.Drawing.Point(20, 85)
 $rtb.Size        = New-Object System.Drawing.Size(665, 310)
@@ -220,11 +272,12 @@ $rtb.Text        = ""
 
 foreach ($line in $statusLines) {
     $color = [System.Drawing.Color]::Black
-    if ($line -match '^\[OK\]')                         { $color = [System.Drawing.Color]::FromArgb(0, 128, 0) }
-    elseif ($line -match '^\[!\]')                      { $color = [System.Drawing.Color]::FromArgb(192, 0, 0) }
-    elseif ($line -match '^---')                        { $color = [System.Drawing.Color]::Gray }
-    elseif ($line -match '^Note:')                      { $color = [System.Drawing.Color]::Gray }
-    elseif ($line -match 'Download link is provided')   { $color = [System.Drawing.Color]::Gray }
+    if ($line -match '^\[OK\]')                    { $color = [System.Drawing.Color]::FromArgb(0, 128, 0) }
+    elseif ($line -match '^\[!\]')                 { $color = [System.Drawing.Color]::FromArgb(192, 0, 0) }
+    elseif ($line -match '^---')                   { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match '^Note:')                 { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match '^This build may be:')    { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match '^  -')                   { $color = [System.Drawing.Color]::Gray }
 
     $rtb.SelectionStart  = $rtb.TextLength
     $rtb.SelectionLength = 0
@@ -235,12 +288,14 @@ $rtb.SelectionStart  = 0
 $rtb.SelectionLength = 0
 $form.Controls.Add($rtb)
 
+# URL label
 $urlLabel = New-Object System.Windows.Forms.Label
 $urlLabel.Text     = "Download link:"
 $urlLabel.Location = New-Object System.Drawing.Point(20, 420)
 $urlLabel.Size     = New-Object System.Drawing.Size(100, 20)
 $form.Controls.Add($urlLabel)
 
+# URL TextBox
 $urlBox = New-Object System.Windows.Forms.TextBox
 $urlBox.Location  = New-Object System.Drawing.Point(120, 418)
 $urlBox.Size      = New-Object System.Drawing.Size(565, 24)
@@ -250,6 +305,7 @@ $urlBox.Text      = $fixUrl
 $urlBox.BackColor = [System.Drawing.Color]::White
 $form.Controls.Add($urlBox)
 
+# Copy button
 $copyBtn = New-Object System.Windows.Forms.Button
 $copyBtn.Text     = "Copy link"
 $copyBtn.Location = New-Object System.Drawing.Point(120, 455)
@@ -267,6 +323,7 @@ $copyBtn.Add_Click({
 })
 $form.Controls.Add($copyBtn)
 
+# Open button
 $openBtn = New-Object System.Windows.Forms.Button
 $openBtn.Text     = "Open in browser"
 $openBtn.Location = New-Object System.Drawing.Point(250, 455)
@@ -274,11 +331,20 @@ $openBtn.Size     = New-Object System.Drawing.Size(140, 32)
 $openBtn.Enabled  = [bool]$fixUrl
 $openBtn.Add_Click({
     if ($urlBox.Text) {
-        Start-Process $urlBox.Text
+        try {
+            Start-Process $urlBox.Text
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show(
+                "Could not open browser: $($_.Exception.Message)",
+                "RDP Patch Check",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+        }
     }
 })
 $form.Controls.Add($openBtn)
 
+# Re-check button
 $rerunBtn = New-Object System.Windows.Forms.Button
 $rerunBtn.Text     = "Re-check"
 $rerunBtn.Location = New-Object System.Drawing.Point(400, 455)
@@ -308,6 +374,7 @@ $rerunBtn.Add_Click({
 })
 $form.Controls.Add($rerunBtn)
 
+# Close button
 $closeBtn = New-Object System.Windows.Forms.Button
 $closeBtn.Text     = "Close"
 $closeBtn.Location = New-Object System.Drawing.Point(585, 500)
@@ -315,6 +382,7 @@ $closeBtn.Size     = New-Object System.Drawing.Size(100, 32)
 $closeBtn.Add_Click({ $form.Close() })
 $form.Controls.Add($closeBtn)
 
+# Bottom hint
 $hint = New-Object System.Windows.Forms.Label
 $hint.Text      = "Fix must be installed manually from Microsoft Update Catalog, then reboot the system."
 $hint.ForeColor = [System.Drawing.Color]::Gray
@@ -323,4 +391,5 @@ $hint.Location  = New-Object System.Drawing.Point(20, 545)
 $hint.Size      = New-Object System.Drawing.Size(660, 20)
 $form.Controls.Add($hint)
 
+# Run
 [void]$form.ShowDialog()

@@ -19,6 +19,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.0] — 2026-10-01
+
+### Changed
+- OS detection now uses `ProductType` from `Win32_OperatingSystem` instead of
+  matching the `Caption` string. Server vs. Client detection is now reliable
+  on localized Windows installations (Russian, German, etc.).
+- `Test-KbInstalled` validates the KB ID format before running any check,
+  avoiding wasted lookups on invalid input.
+- WUA COM history query is limited to `Title` matching — the `Description`
+  field is almost always empty.
+- Registry UBR read now type-checks the returned value.
+
+### Fixed
+- Corrected PowerShell escaping in the inline install example (backslash
+  → backtick). Previous version printed literal `\$url` instead of `$url`.
+- Browser launch in GUI wrapped in try/catch — reports error if
+  `Start-Process` fails.
+
+### Verified
+- Windows Server 2016 (build 14393) — correct verdict.
+- Windows Server 2019 (build 17763) — correct verdict.
+- Windows Server 2022 (build 20348) — correct verdict.
+- Windows 10 22H2 (build 19045) — correct verdict.
+- Tested in all three forms: `.ps1`, GUI, compiled EXE.
+
+---
+
 ## [1.0.4] — 2026-10-01
 
 ### Fixed
