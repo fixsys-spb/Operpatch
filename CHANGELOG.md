@@ -18,30 +18,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Server 2012 / 2012 R2 support in the GUI (already works in the console version
 
 ---
-
 ## [1.0.4] — 2026-10-01
 
 ### Fixed
-- Removed the `Get-WindowsPackage` detection method (previously Method 5).
-  It returned `Installed = $true` for any KB if at least one `RollupFix`
-  package existed, which caused false positives — the tool reported
-  problematic updates as installed even when they were not.
-- Corrected UBR values based on real-world verification:
-  - Server 2016 fix UBR: 9514 → **9339**
-  - Client UBRs for unverified platforms are now set to `0` (detection
-    falls back to the other sources).
+- **Removed the `Get-WindowsPackage` detection method** (previously Method 5).
+  It returned `Installed = $true` for any KB whenever at least one `RollupFix`
+  package existed in the system, which caused false positives — the tool
+  reported problematic updates as installed even when they were not. The
+  check now relies on four sources only: Registry UBR → Get-HotFix → WUA
+  History → DISM.
+- **Corrected Server 2016 fix UBR** based on real-server verification:
+  `9514` → `9339`. The previous value was a projection and did not match
+  the actual build revision observed on Windows Server 2016 after applying
+  KB5129239.
+- **Client-side UBRs disabled** for platforms without verified values.
+  Fields `ProblemUbr` / `FixUbr` are now set to `0` for those entries,
+  which disables UBR-based detection and lets the other sources decide.
+  This avoids false "not installed" or "installed" verdicts on systems
+  where the expected UBR was guessed.
 
 ### Changed
-- Detection now uses **four sources** instead of five:
-  Registry UBR → Get-HotFix → WUA History → DISM.
-- Console output shows installation steps only when the fix is missing
-  (not in the "system protected" scenario).
+- Detection now uses **four sources** instead of five. The removal of
+  Method 5 (`Get-WindowsPackage`) eliminates a class of false positives
+  while keeping coverage for bundled SSU+LCU packages via Registry UBR.
+- Console output now shows installation steps **only when the fix is
+  missing**. In the "system protected" scenario, only the download link
+  is printed — previously the tool displayed installation instructions
+  even when nothing needed to be installed.
+- Script headers updated to reflect the new source count
+  (`four sources` instead of `five sources`).
 
 ### Verified
-- Windows Server 2016 (build 14393, UBR 9339) — correct verdict.
-- Windows Server 2019 (build 17763, UBR 9247) — correct verdict.
-- Windows Server 2022 (build 20348, UBR 5631) — correct verdict.
-- Windows 10 22H2 (build 19045, UBR 6456) — correct verdict.
+- **Windows Server 2016** (build 14393, UBR 9339) — correct verdict.
+- **Windows Server 2019** (build 17763, UBR 9247) — correct verdict.
+- **Windows Server 2022** (build 20348, UBR 5631) — correct verdict.
+- **Windows 10 22H2** (build 19045, UBR 6456) — correct verdict.
 
 ---
 

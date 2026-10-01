@@ -21,27 +21,38 @@
 
 ## [1.0.4] — 2026-10-01
 
-### Fixed
-- Removed the `Get-WindowsPackage` detection method (previously Method 5).
-  It returned `Installed = $true` for any KB if at least one `RollupFix`
-  package existed, which caused false positives — the tool reported
-  problematic updates as installed even when they were not.
-- Corrected UBR values based on real-world verification:
-  - Server 2016 fix UBR: 9514 → **9339**
-  - Client UBRs for unverified platforms are now set to `0` (detection
-    falls back to the other sources).
-
-### Changed
-- Detection now uses **four sources** instead of five:
+### Исправлено
+- **Удалён метод детекции `Get-WindowsPackage`** (ранее — Method 5).
+  Он возвращал `Installed = $true` для любого KB при наличии хотя бы
+  одного пакета `RollupFix` в системе, что давало ложные срабатывания —
+  инструмент сообщал о наличии проблемного обновления, когда его не было.
+  Теперь детекция опирается только на четыре источника:
   Registry UBR → Get-HotFix → WUA History → DISM.
-- Console output shows installation steps only when the fix is missing
-  (not in the "system protected" scenario).
+- **Исправлено значение UBR для Server 2016** по результатам проверки на
+  реальном сервере: `9514` → `9339`. Прежнее значение было рассчитано
+  теоретически и не совпадало с фактической build revision после установки
+  KB5129239 на Windows Server 2016.
+- **Отключены клиентские UBR** для платформ без проверенных значений.
+  Поля `ProblemUbr` / `FixUbr` теперь выставлены в `0` для таких записей,
+  что отключает UBR-детекцию и передаёт решение остальным источникам.
+  Это устраняет ложные вердикты «не установлено» / «установлено» на
+  системах, где ожидаемый UBR был предположением.
 
-### Verified
-- Windows Server 2016 (build 14393, UBR 9339) — correct verdict.
-- Windows Server 2019 (build 17763, UBR 9247) — correct verdict.
-- Windows Server 2022 (build 20348, UBR 5631) — correct verdict.
-- Windows 10 22H2 (build 19045, UBR 6456) — correct verdict.
+### Изменено
+- Детекция теперь использует **четыре источника** вместо пяти. Удаление
+  Method 5 (`Get-WindowsPackage`) устраняет класс ложных срабатываний,
+  сохраняя покрытие связанных пакетов SSU+LCU через Registry UBR.
+- Консольный вывод теперь показывает шаги установки **только при
+  отсутствии исправления**. В сценарии «система защищена» печатается
+  только ссылка на скачивание — ранее инструмент показывал инструкцию
+  по установке, даже когда ничего устанавливать не требовалось.
+- Шапки скриптов обновлены: `four sources` вместо `five sources`.
+
+### Проверено
+- **Windows Server 2016** (build 14393, UBR 9339) — вердикт корректный.
+- **Windows Server 2019** (build 17763, UBR 9247) — вердикт корректный.
+- **Windows Server 2022** (build 20348, UBR 5631) — вердикт корректный.
+- **Windows 10 22H2** (build 19045, UBR 6456) — вердикт корректный.
 
 ---
 
