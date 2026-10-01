@@ -11,16 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [1.0.2] — 2026-09-30
+
+### Fixed
+- KB detection now uses three independent sources...
+
+### Changed
+- Verdict now reports the detection source...
+
 ### Fixed
 - KB detection now uses three independent sources: `Get-HotFix`, WUA COM history, and DISM.
   Bundled SSU+LCU packages were previously invisible to `Get-HotFix` alone, causing false
   "not installed" verdicts on Windows Server 2022 and other builds.
 
-### Planned
-- Network mode: scan a list of servers via `Invoke-Command`.
-- CSV report export.
-- Watch mode (`-Watch`).
-- Server 2012 / 2012 R2 support in the GUI (already works in the console version).
+### Fixed
+- KB detection now uses three independent sources: `Get-HotFix`, WUA COM history, and DISM.
+  Bundled SSU+LCU packages were previously invisible to `Get-HotFix` alone, causing false
+  "not installed" verdicts on Windows Server 2022 and other builds.
 
 ---
 
@@ -31,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - `Author: fixsys-spb`
   - `GitHub: https://github.com/fixsys-spb/Operpatch`
   - `Version: 1.0.1`
-  - `License: МИТ`
+  - `License: Internal use`
 - Author line in the GUI window: `(c) 2026 fixsys-spb | github.com/fixsys-spb/Operpatch`.
 - Copyright line at the end of the console output.
 - Download link is now shown in all three verdict scenarios, not only when the fix is required. This lets the user grab the `.msu` in advance if the problematic update has not arrived yet.

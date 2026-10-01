@@ -11,6 +11,23 @@
 
 ## [Unreleased]
 
+
+---
+
+## [1.0.2] — 2026-09-30
+
+### Fixed
+- KB detection now uses three independent sources...
+
+### Changed
+- Verdict now reports the detection source...
+
+
+### Исправлено
+- Детекция KB теперь использует три независимых источника: `Get-HotFix`, WUA COM history и DISM.
+  Ранее связанные пакеты SSU+LCU были невидимы для `Get-HotFix`, что давало ложный вердикт
+  «не установлено» на Windows Server 2022 и других сборках.
+
 ### Исправлено
 - Детекция KB теперь использует три независимых источника: `Get-HotFix`, WUA COM history и DISM.
   Ранее связанные пакеты SSU+LCU были невидимы для `Get-HotFix`, что давало ложный вердикт
@@ -22,6 +39,7 @@
 - Режим мониторинга `-Watch`.
 - Поддержка Server 2012 / 2012 R2 в GUI (в консольной версии уже есть).
 
+
 ---
 
 ## [1.0.1] — 2026-09-30
@@ -31,7 +49,7 @@
   - `Author: fixsys-spb`
   - `GitHub: https://github.com/fixsys-spb/Operpatch`
   - `Version: 1.0.1`
-  - `License: MIT`
+  - `License: Internal use`
 - Строка авторства в окне GUI: `(c) 2026 fixsys-spb | github.com/fixsys-spb/Operpatch`.
 - Строка копирайта в конце вывода консольного скрипта.
 - Ссылка на скачивание теперь показывается во всех трёх сценариях вердикта, а не только когда требуется установка. Это позволяет скачать `.msu` заранее, если проблемное обновление ещё не пришло.
