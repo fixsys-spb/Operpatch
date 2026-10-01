@@ -24,7 +24,7 @@
     Author:  fixsys-spb
     GitHub:  https://github.com/fixsys-spb/Operpatch
     Date:    2026-10-01
-    Version: 1.0.3
+    Version: 1.0.4
     License: MIT (see LICENSE)
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
@@ -171,7 +171,7 @@ if ($isServer) {
 if (-not $map.ContainsKey($build)) {
     Write-Warn "No patch info for build $build."
     Write-Warn "Supported builds: $($map.Keys -join ', ')"
-    Write-Dim "`nCheck-RdpPatch v1.0.3  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+    Write-Dim "`nCheck-RdpPatch v1.0.4  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
     return
 }
 
@@ -240,5 +240,5 @@ if ($info.Fix) {
 }
 
 Write-Host ""
-Write-Dim "Check-RdpPatch v1.0.3  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+Write-Dim "Check-RdpPatch v1.0.4  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
 Write-Host ""

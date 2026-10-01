@@ -17,6 +17,31 @@
 - Режим мониторинга `-Watch`.
 - Поддержка Server 2012 / 2012 R2 в GUI (в консольной версии уже есть
 
+---
+
+## [1.0.4] — 2026-10-01
+
+### Fixed
+- Removed the `Get-WindowsPackage` detection method (previously Method 5).
+  It returned `Installed = $true` for any KB if at least one `RollupFix`
+  package existed, which caused false positives — the tool reported
+  problematic updates as installed even when they were not.
+- Corrected UBR values based on real-world verification:
+  - Server 2016 fix UBR: 9514 → **9339**
+  - Client UBRs for unverified platforms are now set to `0` (detection
+    falls back to the other sources).
+
+### Changed
+- Detection now uses **four sources** instead of five:
+  Registry UBR → Get-HotFix → WUA History → DISM.
+- Console output shows installation steps only when the fix is missing
+  (not in the "system protected" scenario).
+
+### Verified
+- Windows Server 2016 (build 14393, UBR 9339) — correct verdict.
+- Windows Server 2019 (build 17763, UBR 9247) — correct verdict.
+- Windows Server 2022 (build 20348, UBR 5631) — correct verdict.
+- Windows 10 22H2 (build 19045, UBR 6456) — correct verdict.
 
 ---
 

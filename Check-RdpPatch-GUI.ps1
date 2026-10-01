@@ -13,7 +13,7 @@
     Author:  fixsys-spb
     GitHub:  https://github.com/fixsys-spb/Operpatch
     Date:    2026-10-01
-    Version: 1.0.3
+    Version: 1.0.4
     License: MIT (see LICENSE)
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
