@@ -206,6 +206,25 @@ Installer says the update is already installed.
 No second installation is needed. The fix is applied. Reboot the machine if you have not done so yet.
 
 
+## How detection works
+
+The tool uses five sources in order, from most to least reliable for cumulative updates:
+
+1. **Registry UBR** — reads `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\UBR`. This value is updated by every LCU, including bundled SSU+LCU packages that `Get-HotFix` cannot see.
+2. **Get-HotFix** — classic QFE list.
+3. **WUA COM history** — Microsoft Update session history.
+4. **DISM** — package name matching.
+5. **Get-WindowsPackage** — RollupFix packages.
+
+The verdict reports which source confirmed each KB. UBR values are **verified on real servers** where possible; for platforms without a verified value, the field is set to `0` and detection falls back to the other four sources.
+
+**Verified UBR values:**
+
+| OS | Problem UBR | Fix UBR |
+|---|---|---|
+| Server 2016 | — | 9339 |
+| Server 2019 | 9245 | 9247 |
+| Server 2022 | 5622 | 5631 |
 
 ## License
 

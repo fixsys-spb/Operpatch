@@ -12,8 +12,7 @@
       2. Get-HotFix    — classic QFE list
       3. WUA COM       — Microsoft.Update.Session history
       4. DISM          — package name matching
-      5. Get-WindowsPackage — RollupFix packages
-
+      
     UBR is the most reliable method for cumulative updates, as it is
     always updated by LCU installation even when other sources miss it.
 
@@ -99,51 +98,44 @@ function Test-KbInstalled {
         }
     } catch { }
 
-    # Method 5: Get-WindowsPackage (RollupFix)
-    try {
-        $pkg = Get-WindowsPackage -Online -ErrorAction SilentlyContinue |
-               Where-Object { $_.PackageName -match 'RollupFix' -and $_.PackageState -eq 'Installed' } |
-               Select-Object -First 1
-        if ($pkg) {
-            return [PSCustomObject]@{ Installed = $true; Source = 'Get-WindowsPackage'; Date = $null }
-        }
-    } catch { }
-
     return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
 }
 
 # --- Patch map: Server OS ---
+# UBR values: 0 means "not verified, skip UBR-based detection".
+# Verified: Server 2019 (9245/9247), Server 2022 (5622/5631), Server 2016 fix (9339).
 $ServerPatchMap = @{
-    9200  = @{ OS = "Windows Server 2012";       Problem = "KB5123065"; Fix = "KB5129244"; ProblemUbr = 0;     FixUbr = 0 }
-    9600  = @{ OS = "Windows Server 2012 R2";    Problem = "KB5123066"; Fix = "KB5129243"; ProblemUbr = 0;     FixUbr = 0 }
-    14393 = @{ OS = "Windows Server 2016";       Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 9512;  FixUbr = 9514 }
-    17763 = @{ OS = "Windows Server 2019";       Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245;  FixUbr = 9247 }
-    20348 = @{ OS = "Windows Server 2022";       Problem = "KB5122882"; Fix = "KB5129237"; ProblemUbr = 5622;  FixUbr = 5631 }
-    26100 = @{ OS = "Windows Server 2025";       Problem = "KB5122871"; Fix = "KB5129235"; ProblemUbr = 33438; FixUbr = 33451 }
+    9200  = @{ OS = "Windows Server 2012";    Problem = "KB5123065"; Fix = "KB5129244"; ProblemUbr = 0;    FixUbr = 0 }
+    9600  = @{ OS = "Windows Server 2012 R2"; Problem = "KB5123066"; Fix = "KB5129243"; ProblemUbr = 0;    FixUbr = 0 }
+    14393 = @{ OS = "Windows Server 2016";    Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;    FixUbr = 9339 }
+    17763 = @{ OS = "Windows Server 2019";    Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245; FixUbr = 9247 }
+    20348 = @{ OS = "Windows Server 2022";    Problem = "KB5122882"; Fix = "KB5129237"; ProblemUbr = 5622; FixUbr = 5631 }
+    26100 = @{ OS = "Windows Server 2025";    Problem = "KB5122871"; Fix = "KB5129235"; ProblemUbr = 0;    FixUbr = 0 }
 }
 
 # --- Patch map: Client OS ---
+# Only Server-side UBR values are verified. Client-side UBRs disabled (0) until confirmed.
 $ClientPatchMap = @{
-    10240 = @{ OS = "Windows 10 1507 / LTSB 2015";                 Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;     FixUbr = 0 }
-    10586 = @{ OS = "Windows 10 1511";                             Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;     FixUbr = 0 }
-    14393 = @{ OS = "Windows 10 1607 / LTSB 2016";                 Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 9512;  FixUbr = 9514 }
-    15063 = @{ OS = "Windows 10 1703";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
-    16299 = @{ OS = "Windows 10 1709";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
-    17134 = @{ OS = "Windows 10 1803";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
-    17763 = @{ OS = "Windows 10 1809 / LTSC 2019";                 Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245;  FixUbr = 9247 }
-    18362 = @{ OS = "Windows 10 1903";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
-    18363 = @{ OS = "Windows 10 1909";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0;     FixUbr = 0 }
-    19041 = @{ OS = "Windows 10 2004 / 20H2 / 21H1 / 21H2 / 22H2"; Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
-    19042 = @{ OS = "Windows 10 20H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
-    19043 = @{ OS = "Windows 10 21H1";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
-    19044 = @{ OS = "Windows 10 21H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
-    19045 = @{ OS = "Windows 10 22H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725;  FixUbr = 7727 }
-    22000 = @{ OS = "Windows 11 21H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0;     FixUbr = 0 }
-    22621 = @{ OS = "Windows 11 22H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0;     FixUbr = 0 }
-    22631 = @{ OS = "Windows 11 23H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0;     FixUbr = 0 }
-    26100 = @{ OS = "Windows 11 24H2";                             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 0;     FixUbr = 0 }
-    26200 = @{ OS = "Windows 11 25H2";                             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 0;     FixUbr = 0 }
-    27695 = @{ OS = "Windows 11 26H1";                             Problem = "KB5124012"; Fix = "KB5129194"; ProblemUbr = 0;     FixUbr = 0 }
+    10240 = @{ OS = "Windows 10 1507 / LTSB 2015";                 Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0; FixUbr = 0 }
+    10586 = @{ OS = "Windows 10 1511";                             Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0; FixUbr = 0 }
+    14393 = @{ OS = "Windows 10 1607 / LTSB 2016";                 Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0; FixUbr = 9339 }
+    15063 = @{ OS = "Windows 10 1703";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    16299 = @{ OS = "Windows 10 1709";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    17134 = @{ OS = "Windows 10 1803";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    17763 = @{ OS = "Windows 10 1809 / LTSC 2019";                 Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245; FixUbr = 9247 }
+    18362 = @{ OS = "Windows 10 1903";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    18363 = @{ OS = "Windows 10 1909";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    19041 = @{ OS = "Windows 10 2004 / 20H2 / 21H1 / 21H2 / 22H2"; Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    19042 = @{ OS = "Windows 10 20H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    19043 = @{ OS = "Windows 10 21H1";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    19044 = @{ OS = "Windows 10 21H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    19045 = @{ OS = "Windows 10 22H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
+    22000 = @{ OS = "Windows 11 21H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0; FixUbr = 0 }
+    22621 = @{ OS = "Windows 11 22H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0; FixUbr = 0 }
+    22631 = @{ OS = "Windows 11 23H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0; FixUbr = 0 }
+    26100 = @{ OS = "Windows 11 24H2";                             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 0; FixUbr = 0 }
+    26200 = @{ OS = "Windows 11 25H2";                             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 0; FixUbr = 0 }
+    27695 = @{ OS = "Windows 11 26H1";                             Problem = "KB5124012"; Fix = "KB5129194"; ProblemUbr = 0; FixUbr = 0 }
 }
 
 # ======================== MAIN ========================
@@ -224,19 +216,22 @@ else {
     Write-Warn ("[!] Fix {0} is NOT installed. ACTION REQUIRED." -f $info.Fix)
 }
 
-# --- 5. Always show download link if fix exists ---
+# --- 5. Show download link (steps only if the fix is missing) ---
 if ($info.Fix) {
     $catalogUrl = "https://www.catalog.update.microsoft.com/Search.aspx?q=$($info.Fix)"
     Write-Host ""
     Write-Info "Download link (Microsoft Update Catalog):"
     Write-Host $catalogUrl -ForegroundColor Yellow
-    Write-Host ""
-    Write-Info "Steps:"
-    Write-Host "  1. Open the link, find the x64 package, click Download."
-    Write-Host "  2. Copy the real .msu URL and download the file."
-    Write-Host "  3. Install:"
-    Write-Host "     Start-Process wusa.exe -ArgumentList 'C:\Temp\$($info.Fix).msu /quiet /norestart' -Wait"
-    Write-Host "  4. Reboot the system."
+
+    if (-not $fixCheck.Installed) {
+        Write-Host ""
+        Write-Info "Steps:"
+        Write-Host "  1. Open the link, find the x64 package, click Download."
+        Write-Host "  2. Copy the real .msu URL and download the file."
+        Write-Host "  3. Install:"
+        Write-Host "     Start-Process wusa.exe -ArgumentList 'C:\Temp\$($info.Fix).msu /quiet /norestart' -Wait"
+        Write-Host "  4. Reboot the system."
+    }
 
     if ($OpenLink) {
         Write-Info "`nOpening catalog in browser..."
