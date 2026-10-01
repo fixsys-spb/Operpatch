@@ -1,235 +1,207 @@
-﻿﻿**English** | [Русский](README.ru.md)
+﻿**English** | [Русский](CHANGELOG.ru.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Latest release](https://img.shields.io/github/v/release/fixsys-spb/Operpatch)](https://github.com/fixsys-spb/Operpatch/releases/latest)
+# Changelog
 
-# Check-RdpPatch
+All notable changes to the **Check-RdpPatch** project.
 
-A diagnostic tool for the RDP hang bug introduced by the September 2026 Windows cumulative updates.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/).
 
-![Check-RdpPatch screenshot](Check-RdpPatch-screenshot.png)
+---
 
-## How to use
+## [Unreleased]
 
-### Step 1. Download and prepare
+### Planned
+- Network mode: scan a list of servers via `Invoke-Command`.
+- CSV report export.
+- Watch mode (`-Watch`).
+- Server 2012 / 2012 R2 support in the GUI (already works in the console version).
 
-- Download `Check-RdpPatch.exe`.
-- Move it out of the **Downloads** folder — Windows may block the launch otherwise.
-- If SmartScreen appears, click **More info → Run anyway**.
+---
 
-### Step 2. Run the check
+## [1.0.4] — 2026-10-01
 
-- Double-click `Check-RdpPatch.exe`.
-- A window with results will open.
+### Fixed
+- **Removed the `Get-WindowsPackage` detection method** (previously Method 5).
+  It returned `Installed = $true` for any KB whenever at least one `RollupFix`
+  package existed in the system, which caused false positives — the tool
+  reported problematic updates as installed even when they were not. The
+  check now relies on four sources only: Registry UBR → Get-HotFix → WUA
+  History → DISM.
+- **Corrected Server 2016 fix UBR** based on real-server verification:
+  `9514` → `9339`. The previous value was a projection and did not match
+  the actual build revision observed on Windows Server 2016 after applying
+  KB5129239.
+- **Client-side UBRs disabled** for platforms without verified values.
+  Fields `ProblemUbr` / `FixUbr` are now set to `0` for those entries,
+  which disables UBR-based detection and lets the other sources decide.
+  This avoids false "not installed" or "installed" verdicts on systems
+  where the expected UBR was guessed.
 
-### Step 3. Read the verdict
+### Changed
+- Detection now uses **four sources** instead of five. The removal of
+  Method 5 (`Get-WindowsPackage`) eliminates a class of false positives
+  while keeping coverage for bundled SSU+LCU packages via Registry UBR.
+- Console output now shows installation steps **only when the fix is
+  missing**. In the "system protected" scenario, only the download link
+  is printed — previously the tool displayed installation instructions
+  even when nothing needed to be installed.
+- Script headers updated to reflect the new source count
+  (`four sources` instead of `five sources`).
 
-One of three states will be shown:
+### Verified
+- **Windows Server 2016** (build 14393, UBR 9339) — correct verdict.
+- **Windows Server 2019** (build 17763, UBR 9247) — correct verdict.
+- **Windows Server 2022** (build 20348, UBR 5631) — correct verdict.
+- **Windows 10 22H2** (build 19045, UBR 6456) — correct verdict.
 
-| What you see | What it means | What to do |
+---
+
+## [1.0.3] — 2026-10-01
+
+### Fixed
+- KB detection now uses the **Registry UBR** as the primary source. Bundled
+  SSU+LCU packages are invisible to `Get-HotFix`, WUA COM history, and DISM
+  by KB number, which caused false "not installed" verdicts on Windows
+  Server 2022 (UBR 5622/5631) and other builds.
+- Detection now reports its source (`via Registry UBR`, `via Get-HotFix`,
+  `via WUA History`, `via DISM`, or `via Get-WindowsPackage`).
+
+### Added
+- `ProblemUbr` and `FixUbr` fields in both patch maps — numeric build
+  revisions for precise comparison.
+- UBR value is now shown in the header of the console and GUI output.
+
+### Verified
+- Windows Server 2022 (build 20348, UBR 5631) — correct verdict.
+- Windows Server 2019 (build 17763) — correct verdict.
+
+---
+
+## [1.0.2] — 2026-09-30
+
+### Added
+- README: screenshot of the "system protected" state (`Check-RdpPatch-screenshot4.png`).
+
+### Fixed
+- KB detection now uses three independent sources: `Get-HotFix`,
+  WUA COM history, and DISM. Bundled SSU+LCU packages were previously
+  invisible to `Get-HotFix`, which produced false "not installed" verdicts
+  on Windows Server 2022 and other builds.
+- Verdict now reports the detection source used to identify each KB.
+
+---
+
+## [1.0.1] — 2026-09-30
+
+### Added
+- Author and license metadata in the script headers:
+  - `Author: fixsys-spb`
+  - `GitHub: https://github.com/fixsys-spb/Operpatch`
+  - `Version: 1.0.1`
+  - `License: Internal use`
+- Author line in the GUI window: `(c) 2026 fixsys-spb | github.com/fixsys-spb/Operpatch`.
+- Copyright line at the end of the console output.
+- Download link is now shown in all three verdict scenarios, not only when the fix is required. This lets the user grab the `.msu` in advance if the problematic update has not arrived yet.
+
+### Changed
+- GUI RichTextBox now uses line-by-line coloring instead of a single color for the whole verdict. `[OK]` lines are green, `[!]` lines are red, notes are gray. Previously the entire output was rendered in one color, which masked important warnings.
+- Console: `Write-Err` (red) replaced with `Write-Warn` (yellow) in the "system protected" scenario — this is not an error, only a warning that the problematic update is present.
+- GUI window height increased from 580 to 600 px to fit the new author line.
+- All UI elements in the GUI shifted down by 10 px accordingly.
+
+### Fixed
+- **GUI: Re-check button did not work.** `$MyInvocation.MyCommand.Path` returns an empty value inside an `Add_Click` script block. Replaced with `$PSCommandPath` for `.ps1` and `[System.Reflection.Assembly]::GetEntryAssembly().Location` for the compiled EXE.
+- Removed dead variables `$needsAction` and `$fixKb` — they were set but never read.
+- English README now matches the Russian one in structure (build section removed from both).
+
+### Removed
+- Build-the-EXE section from `README.md` and `README.ru.md` (kept in `build-exe.ps1` and its inline help).
+
+---
+
+## [1.0.0] — 2026-09-29
+
+### Added
+
+**Console script `Check-RdpPatch.ps1`:**
+- OS detection by `BuildNumber` via `Win32_OperatingSystem`.
+- Split patch maps: server (`$ServerPatchMap`) and client (`$ClientPatchMap`).
+- Problem-update and fix detection via `Get-HotFix`.
+- Three-scenario verdict:
+  - system not affected by the bug;
+  - system protected;
+  - fix required.
+- Automatic Microsoft Update Catalog link generation.
+- `-OpenLink` switch to open the link in the default browser.
+
+**GUI version `Check-RdpPatch-GUI.ps1` (WinForms):**
+- Window 720×580 with title and subtitle.
+- Color-coded verdict (green / red).
+- **Download link** field with the Microsoft Update Catalog URL.
+- **Copy link** button — copies the URL to the clipboard.
+- **Open in browser** button — opens the link.
+- **Re-check** button — reruns the check.
+- **Close** button — closes the window.
+- Link buttons disabled when no fix is required.
+
+**Documentation:**
+- `README.md` — problem description, supported systems, instructions.
+- `Check-RdpPatch-screenshot.png` — GUI screenshot.
+
+### Supported systems
+
+**Server:**
+- Windows Server 2012 (build 9200)
+- Windows Server 2012 R2 (build 9600)
+- Windows Server 2016 (build 14393)
+- Windows Server 2019 (build 17763)
+- Windows Server 2022 (build 20348)
+- Windows Server 2025 (build 26100)
+
+**Client:**
+- Windows 10: 1507, 1511, 1607, 1703, 1709, 1803, 1809, 1903, 1909, 2004–22H2, LTSC 2015/2016/2019.
+- Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
+
+### Patch matrix
+
+| OS | Problem update | Fix |
 |---|---|---|
-| "Problem update is NOT installed" | The bug has not reached this PC | Nothing. Keep an eye on updates |
-| "Fix IS installed" | The bug is present but already mitigated | Nothing |
-| "Fix is NOT installed. ACTION REQUIRED" | The bug is present, unprotected | Download the fix (Step 4) |
-
-When the problematic update and its fix are both installed, the verdict confirms the system is protected. Detection reports the source (`via WUA History`, `via Get-HotFix`, or `via DISM`):
-
-![System protected](Check-RdpPatch-screenshot4.png)
-
-### Step 4. Install the fix (if required)
-
-1. In the app window, click **Open in browser** — the Microsoft Update Catalog opens.
-2. Find the **x64** package and click **Download**.
-3. Copy the **current** `.msu` URL — Microsoft's dynamic links expire quickly.
-4. Install the fix. Either via PowerShell:
-
-```
-Start-Process wusa.exe -ArgumentList "C:\Temp\KBxxxxxxx.msu /quiet /norestart" -Wait
-```
-
-Or by double-clicking the downloaded `.msu`.
-
-5. Verify the installation:
-
-```
-Get-HotFix -Id KBxxxxxxx
-```
-
-6. **Reboot the machine.** The fix does not take effect without a reboot.
-
-### Step 5. Re-check
-
-Run `Check-RdpPatch.exe` again. The verdict should now read "Fix IS installed".
-
-### If the fix is already installed
-
-Running the `.msu` installer again will report that the update is already installed on this computer. This is expected — no second installation is needed, and it will not harm the system.
-
-![Fix already installed](Check-RdpPatch-screenshot2.png)
-
-## What to do right now
-
-If the problematic update is being installed right now (Windows Update shows the progress bar), act quickly.
-
-![Problem update is installing right now](Check-RdpPatch-screenshot3.png)
-
-### 1. Immediately check the installation status
-
-Open PowerShell as Administrator and run:
-
-```
-Get-HotFix -Id KB5122876
-```
-
-- If the command returns information about the update — it is installed. Go to step 2.
-- If you get "Not found" — the update has not been applied yet. It may be in progress or waiting for a reboot. Go to step 3.
-
-### 2. If the update is installed — DO NOT reboot the server
-
-This is important. The RDP hang typically appears after the first reboot or user logoff. You have a brief window to install the fix before the bug manifests. Proceed immediately with installing KB5129238 using Check-RdpPatch.
-
-### 3. If the update is not yet installed — block it
-
-If possible, it is better not to install the problematic update at all. This is the safest path.
-
-- Via `sconfig`: run `sconfig` → option 5 (Update settings) → press **M** to switch to manual mode. This stops automatic installation.
-- Via WSUS or Group Policy: if you have WSUS, decline KB5122876 for this server group. In a domain, use Group Policy to block its installation.
-- Rollback: if the update is installed but the server has not been rebooted yet, you can try removing it with `wusa /uninstall /kb:5122876`. Note this is a temporary measure — a reboot may be required afterwards.
-
-## What to do if RDP is already unresponsive
-
-If the server has hung and RDP connections fail:
-
-1. Hard reboot — the only fast solution.
-2. Right after the reboot, connect via RDP before the problem returns.
-3. Install the fix (Step 4 above) and reboot again.
-4. Verify the result with `Check-RdpPatch.exe`.
-
-The problem returns after the first user logon or logoff, so act fast.
-
-## Important warnings
-
-- Reboot is mandatory. After installing the fix, RDP will not recover until the machine is restarted.
-- Check the update queue. If the problematic update is not installed yet but is scheduled — install the fix in advance.
-- Do not rush. Read the tool's verdict carefully.
-
-## What the tool does
-
-1. Detects the Windows version.
-2. Checks whether the problematic update is installed.
-3. Checks whether the fix is installed.
-4. Prints the verdict and a download link.
-
-## Supported systems
-
-Windows Server: 2012, 2012 R2, 2016, 2019, 2022, 2025.
-
-Windows 10: 1507, 1511, 1607, 1703, 1709, 1803, 1809, 1903, 1909, 2004–22H2, LTSC 2015/2016/2019.
-
-Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
-
-## Files
-
-| File | Purpose |
-|---|---|
-| `Check-RdpPatch.exe` | Ready-to-run GUI application |
-| `Check-RdpPatch-GUI.ps1` | GUI source |
-| `Check-RdpPatch.ps1` | Console version |
-| `Check-RdpPatch-screenshot.png` | Main window screenshot |
-| `Check-RdpPatch-screenshot2.png` | Screenshot: fix already installed |
-| `Check-RdpPatch-screenshot3.png` | Screenshot: update installing right now |
-| Check-RdpPatch-screenshot4.png | Screenshot: system protected |
-| `CHANGELOG.md` | Version history |
-
-## Requirements
-
-- PowerShell 5.1 or newer — bundled with Windows 10/11 and Server 2016+.
-- Standard user rights. Administrator is not required.
-
-If PowerShell blocks `.ps1` scripts:
-
-```
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-```
-
-## Alternative launch methods
-
-Console version:
-
-```
-.\Check-RdpPatch.ps1
-```
-
-Open the catalog link in the browser right away:
-
-```
-.\Check-RdpPatch.ps1 -OpenLink
-```
-
-GUI via PowerShell:
-
-```
-.\Check-RdpPatch-GUI.ps1
-```
-
-## Application interface
-
-| Element | Purpose |
-|---|---|
-| Output pane | Check results with color-coded verdict |
-| Download link | Microsoft Update Catalog URL |
-| Copy link | Copies the URL to the clipboard |
-| Open in browser | Opens the link in the default browser |
-| Re-check | Reruns the check |
-| Close | Closes the window |
-
-The link buttons are disabled when no fix is required.
-
-## FAQ
-
-SmartScreen blocks the launch.
-Click "More info" → "Run anyway". Alternatively, unblock the file: right-click → Properties → check "Unblock".
-
-Antivirus flags the EXE.
-Some antivirus products flag PS2EXE-built executables as suspicious. Add the file to exclusions.
-
-`Get-HotFix` returns nothing.
-Run PowerShell as Administrator.
-
-Console encoding shows garbled characters.
-Output is deliberately in English to avoid CP866 issues.
-
-Server 2012 / 2012 R2 not supported in the GUI.
-The GUI does not cover these systems yet. Use the console version `Check-RdpPatch.ps1`.
-
-Installer says the update is already installed.
-No second installation is needed. The fix is applied. Reboot the machine if you have not done so yet.
-
-
-## How detection works
-
-The tool uses five sources in order, from most to least reliable for cumulative updates:
-
-1. **Registry UBR** — reads `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\UBR`. This value is updated by every LCU, including bundled SSU+LCU packages that `Get-HotFix` cannot see.
-2. **Get-HotFix** — classic QFE list.
-3. **WUA COM history** — Microsoft Update session history.
-4. **DISM** — package name matching.
-5. **Get-WindowsPackage** — RollupFix packages.
-
-The verdict reports which source confirmed each KB. UBR values are **verified on real servers** where possible; for platforms without a verified value, the field is set to `0` and detection falls back to the other four sources.
-
-**Verified UBR values:**
-
-| OS | Problem UBR | Fix UBR |
-|---|---|---|
-| Server 2016 | — | 9339 |
-| Server 2019 | 9245 | 9247 |
-| Server 2022 | 5622 | 5631 |
-
-## License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
-## CHANGELOG
-
-See [CHANGELOG.md](CHANGELOG.md).
+| Server 2012 | KB5123065 | KB5129244 |
+| Server 2012 R2 | KB5123066 | KB5129243 |
+| Server 2016 | KB5123099 | KB5129239 |
+| Server 2019 | KB5122876 | KB5129238 |
+| Server 2022 | KB5122882 | KB5129237 |
+| Server 2025 | KB5122871 | KB5129235 |
+| Windows 10 (1507–22H2) | KB5123099 / KB5122876 / KB5122878 | KB5129239 / KB5129238 / KB5129236 |
+| Windows 11 (21H2–26H1) | KB5122880 / KB5124008 / KB5124012 | KB5129242 / KB5129195 / KB5129194 |
+
+### Known limitations
+- Server 2012 / 2012 R2 are not covered by the GUI (the console version handles them).
+- `.msu` links on the Microsoft catalog are dynamic and cannot be bookmarked.
+- The EXE built with PS2EXE may be flagged by SmartScreen and antivirus products.
+
+---
+
+## [0.1.0] — 2026-09-29
+
+### Added
+- Initial concept of the console script for RDP bug diagnostics.
+- Patch map for Server 2016, 2019, 2022.
+- Basic status output without a verdict.
+
+### Fixed
+- Duplicate `26100` key in the hash table — split into `$ServerPatchMap` and `$ClientPatchMap`.
+- Output encoding: Cyrillic replaced with English for correct display in CP866.
+
+---
+
+## Maintenance rules
+
+1. New changes go into the `[Unreleased]` section.
+2. On release — bump the version per SemVer:
+   - `MAJOR` — incompatible changes.
+   - `MINOR` — new backwards-compatible functionality.
+   - `PATCH` — backwards-compatible fixes.
+3. Categories: **Added**, **Changed**, **Deprecated**, **Removed**, **Fixed**, **Security**.
+4. Release date format — `YYYY-MM-DD`.
