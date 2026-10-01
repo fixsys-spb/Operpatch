@@ -11,26 +11,41 @@
 
 ## [Unreleased]
 
-### Fixed
-- KB detection now uses Registry UBR as primary source. Bundled SSU+LCU packages
-  were invisible to Get-HotFix, WUA COM history, and DISM by KB number, causing
-  false "not installed" verdicts on Windows Server 2022 (UBR 5622/5631) and
-  other builds.
-
-### Added
-- README: скриншот "проблема с RDP устранена" (`Check-RdpPatch-screenshot4.png`).
-
----
-
 ### Планируется
 - Сетевой режим: проверка списка серверов через `Invoke-Command`.
 - Экспорт отчёта в CSV.
 - Режим мониторинга `-Watch`.
-- Поддержка Server 2012 / 2012 R2 в GUI (в консольной версии уже есть).
+- Поддержка Server 2012 / 2012 R2 в GUI (в консольной версии уже есть
+
+
+---
+
+## [1.0.3] — 2026-10-01
+
+### Исправлено
+- Детекция KB теперь использует **Registry UBR** как основной источник. Связанные
+  пакеты SSU+LCU невидимы для `Get-HotFix`, WUA COM history и DISM по номеру KB,
+  что давало ложный вердикт «не установлено» на Windows Server 2022 (UBR 5622/5631)
+  и других сборках.
+- Детекция теперь сообщает источник (`via Registry UBR`, `via Get-HotFix`,
+  `via WUA History`, `via DISM` или `via Get-WindowsPackage`).
+
+### Добавлено
+- Поля `ProblemUbr` и `FixUbr` в обеих картах патчей — числовые build revisions
+  для точного сравнения.
+- Значение UBR теперь выводится в шапке консольного и GUI-вывода.
+
+### Проверено
+- Windows Server 2022 (build 20348, UBR 5631) — вердикт корректный.
+- Windows Server 2019 (build 17763) — вердикт корректный.
 
 ---
 
 ## [1.0.2] — 2026-09-30
+
+
+### Added
+- README: скриншот "проблема с RDP устранена" (`Check-RdpPatch-screenshot4.png`).
 
 ### Fixed
 - KB detection now uses three independent sources...
