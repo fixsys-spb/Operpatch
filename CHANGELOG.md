@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - `Author: fixsys-spb`
   - `GitHub: https://github.com/fixsys-spb/Operpatch`
   - `Version: 1.0.1`
-  - `License: Internal use`
+  - `License: МИТ`
 - Author line in the GUI window: `(c) 2026 fixsys-spb | github.com/fixsys-spb/Operpatch`.
 - Copyright line at the end of the console output.
 - Download link is now shown in all three verdict scenarios, not only when the fix is required. This lets the user grab the `.msu` in advance if the problematic update has not arrived yet.

@@ -31,7 +31,7 @@
   - `Author: fixsys-spb`
   - `GitHub: https://github.com/fixsys-spb/Operpatch`
   - `Version: 1.0.1`
-  - `License: Internal use`
+  - `License: MIT`
 - Строка авторства в окне GUI: `(c) 2026 fixsys-spb | github.com/fixsys-spb/Operpatch`.
 - Строка копирайта в конце вывода консольного скрипта.
 - Ссылка на скачивание теперь показывается во всех трёх сценариях вердикта, а не только когда требуется установка. Это позволяет скачать `.msu` заранее, если проблемное обновление ещё не пришло.
