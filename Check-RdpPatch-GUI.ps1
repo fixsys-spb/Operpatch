@@ -16,6 +16,11 @@
     ProductType is used for accurate Server vs. Client detection,
     independent of OS caption localization.
 
+    Builds are split into three tiers:
+      - Supported  : September 2026 RDP matrix (KB check performed)
+      - Legacy     : out of servicing before Sept 2026 (no KB check)
+      - Unknown    : not in our maps (no KB check)
+
 .NOTES
     Author:  fixsys-spb
     GitHub:  https://github.com/fixsys-spb/Operpatch
@@ -24,7 +29,8 @@
     License: MIT (see LICENSE)
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
-      Client: Windows 10 (1507..22H2, LTSC), Windows 11 (21H2..26H1)
+      Client: Windows 10 (1607 LTSB, 1809 LTSC, 21H2, 22H2),
+              Windows 11 (23H2, 24H2, 25H2, 26H1)
 #>
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -123,40 +129,66 @@ function Test-KbInstalled {
     return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
 }
 
-# --- Patch map: Server OS ---
-# UBR values: 0 means "not verified, skip UBR-based detection".
-# Verified: Server 2016 (fix 9339), Server 2019 (9245/9247), Server 2022 (5622/5631).
-$ServerPatchMap = @{
-    9200  = @{ OS = "Windows Server 2012";    Problem = "KB5123065"; Fix = "KB5129244"; ProblemUbr = 0;    FixUbr = 0 }
-    9600  = @{ OS = "Windows Server 2012 R2"; Problem = "KB5123066"; Fix = "KB5129243"; ProblemUbr = 0;    FixUbr = 0 }
-    14393 = @{ OS = "Windows Server 2016";    Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;    FixUbr = 9339 }
-    17763 = @{ OS = "Windows Server 2019";    Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245; FixUbr = 9247 }
-    20348 = @{ OS = "Windows Server 2022";    Problem = "KB5122882"; Fix = "KB5129237"; ProblemUbr = 5622; FixUbr = 5631 }
-    26100 = @{ OS = "Windows Server 2025";    Problem = "KB5122871"; Fix = "KB5129235"; ProblemUbr = 0;    FixUbr = 0 }
+# ================= LEGACY / UNSUPPORTED BUILDS =================
+# Builds that were out of servicing before September 2026.
+# The September 2026 RDP regression does not target these branches.
+# The GUI prints an explicit "out of servicing" message instead of
+# a misleading verdict. No KB check is performed.
+
+$LegacyBuilds = [ordered]@{
+    10240 = "Windows 10 1507 / LTSB 2015"
+    10586 = "Windows 10 1511"
+    15063 = "Windows 10 1703"
+    16299 = "Windows 10 1709"
+    17134 = "Windows 10 1803"
+    18362 = "Windows 10 1903"
+    18363 = "Windows 10 1909"
+    19041 = "Windows 10 2004"
+    19042 = "Windows 10 20H2"
+    19043 = "Windows 10 21H1"
+    22000 = "Windows 11 21H2"
+    22621 = "Windows 11 22H2"
 }
 
-# --- Patch map: Client OS ---
+# ================= SUPPORTED: SERVER =================
+# UBR policy: ProblemUbr / FixUbr are filled only when Microsoft explicitly
+# documents the OS build for that KB in the Update Catalog card.
+# Missing data is 0 — never a guess.
+#
+# Verified UBRs:
+#   Server 2019 (9245/9247), Server 2022 (5622/5631),
+#   Server 2025 (33438/33451).
+#
+# Server 2016: UBR set to 0 — live-server check showed 9339 after KB5129239,
+# while the Microsoft catalog lists 9514. UBR detection disabled for 14393.
+
+$ServerPatchMap = @{
+    9200  = @{ OS = "Windows Server 2012";    Problem = "KB5123065"; Fix = "KB5129244"; ProblemUbr = 0;     FixUbr = 0 }
+    9600  = @{ OS = "Windows Server 2012 R2"; Problem = "KB5123066"; Fix = "KB5129243"; ProblemUbr = 0;     FixUbr = 0 }
+    14393 = @{ OS = "Windows Server 2016";    Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;     FixUbr = 0 }
+    17763 = @{ OS = "Windows Server 2019";    Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245;  FixUbr = 9247 }
+    20348 = @{ OS = "Windows Server 2022";    Problem = "KB5122882"; Fix = "KB5129237"; ProblemUbr = 5622;  FixUbr = 5631 }
+    26100 = @{ OS = "Windows Server 2025";    Problem = "KB5122871"; Fix = "KB5129235"; ProblemUbr = 33438; FixUbr = 33451 }
+}
+
+# ================= SUPPORTED: CLIENT =================
+# Verified UBRs:
+#   Win10 1809 LTSC (9245/9247),
+#   Win10 21H2 (7725/7727), Win10 22H2 (7725/7727),
+#   Win11 23H2 (—/7584), Win11 24H2 (9445/9457),
+#   Win11 25H2 (9445/9457), Win11 26H1 (2954/2956).
+#
+# Win10 1607 LTSB: UBR set to 0 — see $ServerPatchMap comment.
+
 $ClientPatchMap = @{
-    10240 = @{ OS = "Windows 10 1507 / LTSB 2015";                 Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0; FixUbr = 0 }
-    10586 = @{ OS = "Windows 10 1511";                             Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0; FixUbr = 0 }
-    14393 = @{ OS = "Windows 10 1607 / LTSB 2016";                 Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0; FixUbr = 9339 }
-    15063 = @{ OS = "Windows 10 1703";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    16299 = @{ OS = "Windows 10 1709";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    17134 = @{ OS = "Windows 10 1803";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    17763 = @{ OS = "Windows 10 1809 / LTSC 2019";                 Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245; FixUbr = 9247 }
-    18362 = @{ OS = "Windows 10 1903";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    18363 = @{ OS = "Windows 10 1909";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    19041 = @{ OS = "Windows 10 2004 / 20H2 / 21H1 / 21H2 / 22H2"; Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    19042 = @{ OS = "Windows 10 20H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    19043 = @{ OS = "Windows 10 21H1";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    19044 = @{ OS = "Windows 10 21H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    19045 = @{ OS = "Windows 10 22H2";                             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 0; FixUbr = 0 }
-    22000 = @{ OS = "Windows 11 21H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0; FixUbr = 0 }
-    22621 = @{ OS = "Windows 11 22H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0; FixUbr = 0 }
-    22631 = @{ OS = "Windows 11 23H2";                             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0; FixUbr = 0 }
-    26100 = @{ OS = "Windows 11 24H2";                             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 0; FixUbr = 0 }
-    26200 = @{ OS = "Windows 11 25H2";                             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 0; FixUbr = 0 }
-    27695 = @{ OS = "Windows 11 26H1";                             Problem = "KB5124012"; Fix = "KB5129194"; ProblemUbr = 0; FixUbr = 0 }
+    14393 = @{ OS = "Windows 10 1607 / LTSB 2016"; Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;    FixUbr = 0 }
+    17763 = @{ OS = "Windows 10 1809 / LTSC 2019"; Problem = "KB5122876"; Fix = "KB5129238"; ProblemUbr = 9245; FixUbr = 9247 }
+    19044 = @{ OS = "Windows 10 21H2";             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725; FixUbr = 7727 }
+    19045 = @{ OS = "Windows 10 22H2";             Problem = "KB5122878"; Fix = "KB5129236"; ProblemUbr = 7725; FixUbr = 7727 }
+    22631 = @{ OS = "Windows 11 23H2";             Problem = "KB5122880"; Fix = "KB5129242"; ProblemUbr = 0;    FixUbr = 7584 }
+    26100 = @{ OS = "Windows 11 24H2";             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 9445; FixUbr = 9457 }
+    26200 = @{ OS = "Windows 11 25H2";             Problem = "KB5124008"; Fix = "KB5129195"; ProblemUbr = 9445; FixUbr = 9457 }
+    28000 = @{ OS = "Windows 11 26H1";             Problem = "KB5124012"; Fix = "KB5129194"; ProblemUbr = 2954; FixUbr = 2956 }
 }
 
 # ---------- Detection ----------
@@ -181,16 +213,31 @@ if ($null -ne $currentUbr) {
 [void]$statusLines.Add("")
 [void]$statusLines.Add(("Detected:     {0} OS (ProductType: {1})" -f $(if ($isServer) { "Server" } else { "Client" }), $productType))
 
-if (-not $map.ContainsKey($build)) {
+if (-not $isServer -and $LegacyBuilds.Contains($build)) {
+    # Legacy / out-of-servicing build
     [void]$statusLines.Add("")
-    [void]$statusLines.Add("No patch info for build $build.")
+    [void]$statusLines.Add(("Build {0} — {1}" -f $build, $LegacyBuilds[$build]))
+    [void]$statusLines.Add("This build is out of servicing before September 2026.")
+    [void]$statusLines.Add("The September 2026 RDP regression does not apply to this branch.")
+    [void]$statusLines.Add("")
+    [void]$statusLines.Add("No KB check performed — there is no September 2026 RDP")
+    [void]$statusLines.Add("patch pair for this Windows build.")
+    [void]$statusLines.Add("")
+    [void]$statusLines.Add("Note: this is NOT a safety verdict. The system may have")
+    [void]$statusLines.Add("      other unpatched vulnerabilities.")
+}
+elseif (-not $map.ContainsKey($build)) {
+    # Unknown build
+    [void]$statusLines.Add("")
+    [void]$statusLines.Add("No patch data available for build $build.")
     [void]$statusLines.Add("")
     [void]$statusLines.Add("This build may be:")
-    [void]$statusLines.Add("  - Not yet affected by the RDP bug")
-    [void]$statusLines.Add("  - Covered by a different patch timeline")
-    [void]$statusLines.Add("  - A preview / insider build")
+    [void]$statusLines.Add("  - Not yet affected by the September 2026 RDP bug")
+    [void]$statusLines.Add("  - An insider / preview build")
+    [void]$statusLines.Add("  - A future release not yet covered by this tool")
 }
 else {
+    # Supported build — perform KB check
     $info    = $map[$build]
     $fixUrl  = "https://www.catalog.update.microsoft.com/Search.aspx?q=$($info.Fix)"
 
@@ -272,12 +319,16 @@ $rtb.Text        = ""
 
 foreach ($line in $statusLines) {
     $color = [System.Drawing.Color]::Black
-    if ($line -match '^\[OK\]')                    { $color = [System.Drawing.Color]::FromArgb(0, 128, 0) }
-    elseif ($line -match '^\[!\]')                 { $color = [System.Drawing.Color]::FromArgb(192, 0, 0) }
-    elseif ($line -match '^---')                   { $color = [System.Drawing.Color]::Gray }
-    elseif ($line -match '^Note:')                 { $color = [System.Drawing.Color]::Gray }
-    elseif ($line -match '^This build may be:')    { $color = [System.Drawing.Color]::Gray }
-    elseif ($line -match '^  -')                   { $color = [System.Drawing.Color]::Gray }
+    if     ($line -match '^\[OK\]')                 { $color = [System.Drawing.Color]::FromArgb(0, 128, 0) }
+    elseif ($line -match '^\[!\]')                  { $color = [System.Drawing.Color]::FromArgb(192, 0, 0) }
+    elseif ($line -match '^---')                    { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match '^Note:')                  { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match '^This build may be:')     { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match '^  -')                    { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match '^Build \d+ —')            { $color = [System.Drawing.Color]::FromArgb(192, 96, 0) }
+    elseif ($line -match 'out of servicing')        { $color = [System.Drawing.Color]::FromArgb(192, 96, 0) }
+    elseif ($line -match '^No KB check performed')  { $color = [System.Drawing.Color]::Gray }
+    elseif ($line -match '^No patch data available'){ $color = [System.Drawing.Color]::FromArgb(192, 96, 0) }
 
     $rtb.SelectionStart  = $rtb.TextLength
     $rtb.SelectionLength = 0
