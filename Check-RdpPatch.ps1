@@ -41,6 +41,8 @@
 #>
 
 [CmdletBinding()]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Interactive console script with colored output for the user')]
 param(
     [switch]$OpenLink
 )
@@ -61,6 +63,7 @@ function Get-CurrentUbr {
         }
         return $null
     } catch {
+        Write-Verbose "Failed to read UBR from registry: $($_.Exception.Message)"
         return $null
     }
 }
@@ -72,6 +75,7 @@ function Get-OsProductType {
         $cim = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
         return [int]$cim.ProductType
     } catch {
+        Write-Verbose "Failed to query Win32_OperatingSystem: $($_.Exception.Message)"
         return 0
     }
 }
@@ -106,7 +110,9 @@ function Test-KbInstalled {
             }
             return [PSCustomObject]@{ Installed = $true; Source = 'Get-HotFix'; Date = $installDate }
         }
-    } catch { }
+    } catch {
+        Write-Verbose "Get-HotFix check failed for $KbId : $($_.Exception.Message)"
+    }
 
     # Method 3: WUA COM history
     try {
@@ -131,7 +137,9 @@ function Test-KbInstalled {
                 return [PSCustomObject]@{ Installed = $true; Source = 'WUA History'; Date = $instDate }
             }
         }
-    } catch { }
+    } catch {
+        Write-Verbose "WUA COM history check failed for $KbId : $($_.Exception.Message)"
+    }
 
     # Method 4: DISM package name match (legacy packages only)
     # Note: LCU/SSU bundles are named "Package_for_RollupFix~...~build.ubr"
@@ -141,7 +149,9 @@ function Test-KbInstalled {
         if ($dismOutput -and $dismOutput -match "Package_for_$([regex]::Escape($KbId))\b") {
             return [PSCustomObject]@{ Installed = $true; Source = 'DISM'; Date = $null }
         }
-    } catch { }
+    } catch {
+        Write-Verbose "DISM check failed for $KbId : $($_.Exception.Message)"
+    }
 
     return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
 }
