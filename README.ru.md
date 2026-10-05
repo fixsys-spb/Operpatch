@@ -1,6 +1,8 @@
 ﻿[English](README.md) | **Русский**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue)]()
+[![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B-blue)]()
 [![Latest release](https://img.shields.io/github/v/release/fixsys-spb/Operpatch)](https://github.com/fixsys-spb/Operpatch/releases/latest)
 
 # Check-RdpPatch
