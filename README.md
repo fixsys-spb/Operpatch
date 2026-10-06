@@ -124,11 +124,24 @@ The problem returns after the first user logon or logoff, so act fast.
 
 ## Supported systems
 
-Windows Server: 2012, 2012 R2, 2016, 2019, 2022, 2025.
+The tool classifies every detected build into one of three tiers.
 
-Windows 10: 1507, 1511, 1607, 1703, 1709, 1803, 1809, 1903, 1909, 2004–22H2, LTSC 2015/2016/2019.
+### Fully supported (KB check is performed)
 
-Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
+- **Windows Server:** 2012, 2012 R2, 2016, 2019, 2022, 2025
+- **Windows 10:** 1607 LTSB, 1809 LTSC, 21H2, 22H2
+- **Windows 11:** 23H2, 24H2, 25H2, 26H1
+
+### Legacy (out of servicing before Sept 2026 — no KB check)
+
+The tool detects these builds and prints an explicit "out of servicing" message. No verdict is produced — the September 2026 RDP regression does not target these branches.
+
+- **Windows 10:** 1507, 1511, 1703, 1709, 1803, 1903, 1909, 2004, 20H2, 21H1
+- **Windows 11:** 21H2, 22H2
+
+### Unknown
+
+Any other build → the tool reports "No patch data available" and does not perform a KB check. This covers insider/preview builds and future releases not yet covered by this tool.
 
 ## Files
 
@@ -140,7 +153,7 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 | `Check-RdpPatch-screenshot.png` | Main window screenshot |
 | `Check-RdpPatch-screenshot2.png` | Screenshot: fix already installed |
 | `Check-RdpPatch-screenshot3.png` | Screenshot: update installing right now |
-| Check-RdpPatch-screenshot4.png | Screenshot: system protected |
+| `Check-RdpPatch-screenshot4.png` | Screenshot: system protected |
 | `CHANGELOG.md` | Version history |
 
 ## Requirements
@@ -151,7 +164,7 @@ Windows 11: 21H2, 22H2, 23H2, 24H2, 25H2, 26H1.
 If PowerShell blocks `.ps1` scripts:
 
 ```
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
 ## Alternative launch methods
@@ -207,26 +220,32 @@ The GUI does not cover these systems yet. Use the console version `Check-RdpPatc
 Installer says the update is already installed.
 No second installation is needed. The fix is applied. Reboot the machine if you have not done so yet.
 
-
 ## How detection works
 
-The tool uses five sources in order, from most to least reliable for cumulative updates:
+The tool uses four sources in order, from most to least reliable for cumulative updates:
 
 1. **Registry UBR** — reads `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\UBR`. This value is updated by every LCU, including bundled SSU+LCU packages that `Get-HotFix` cannot see.
 2. **Get-HotFix** — classic QFE list.
 3. **WUA COM history** — Microsoft Update session history.
 4. **DISM** — package name matching.
-5. **Get-WindowsPackage** — RollupFix packages.
 
-The verdict reports which source confirmed each KB. UBR values are **verified on real servers** where possible; for platforms without a verified value, the field is set to `0` and detection falls back to the other four sources.
+The verdict reports which source confirmed each KB. UBR values are **verified on real servers** where possible; for platforms without a verified value, the field is set to `0` and detection falls back to the other three sources.
 
 **Verified UBR values:**
 
 | OS | Problem UBR | Fix UBR |
 |---|---|---|
-| Server 2016 | — | 9339 |
+| Server 2016 | — (disabled) | — (disabled) |
 | Server 2019 | 9245 | 9247 |
 | Server 2022 | 5622 | 5631 |
+| Server 2025 | 33438 | 33451 |
+| Windows 10 1809 LTSC | 9245 | 9247 |
+| Windows 10 21H2 / 22H2 | 7725 | 7727 |
+| Windows 11 23H2 | — | 7584 |
+| Windows 11 24H2 / 25H2 | 9445 | 9457 |
+| Windows 11 26H1 | 2954 | 2956 |
+
+Where the field shows `—`, UBR-based detection is disabled and the tool relies on Get-HotFix / WUA History / DISM.
 
 ## License
 

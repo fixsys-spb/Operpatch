@@ -11,11 +11,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased][]
 
-### Planned
-- Network mode: scan a list of servers via `Invoke-Command`.
-- CSV report export.
-- Watch mode (`-Watch`).
-- Server 2012 / 2012 R2 support in the GUI (already works in the console version).
+### Fixed
+- Removed all PSScriptAnalyzer warnings:
+  - Empty `catch` blocks now log via `Write-Verbose` instead of being
+    silent (rule `PSAvoidUsingEmptyCatchBlock`).
+  - `Write-Host` usage in the console script is suppressed project-wide
+    via `[Diagnostics.CodeAnalysis.SuppressMessageAttribute]`, justified
+    by interactive colored output (rule `PSAvoidUsingWriteHost`).
+- Cleaned up all Remark-lint warnings in both CHANGELOG files:
+  - Added reference-link definitions for every version heading.
+  - Switched section headings to collapsed reference form (`[X][]`).
+  - Ensured a trailing newline at end of file.
+- Documentation corrections:
+  - README: "five sources" corrected to "four sources" (matches v1.0.4
+    removal of `Get-WindowsPackage`).
+  - README: "Verified UBR values" table updated with Server 2025,
+    Windows 10 21H2/22H2, Windows 11 23H2/24H2/25H2/26H1 and the
+    Server 2016 disablement.
+  - README: "Supported systems" section rewritten into three tiers
+    (Supported / Legacy / Unknown).
+
+### Added
+- `.gitattributes` to normalize line endings across the repository
+  (LF for source and docs, CRLF for `.bat`/`.cmd`, binary for images
+  and executables).
+
+### Changed
+- GitHub Code Scanning now reports 0 open alerts across all four tools
+  (PSScriptAnalyzer, Remark-lint, and two others).
 
 ---
 
