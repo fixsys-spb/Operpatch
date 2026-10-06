@@ -1,2 +1,42 @@
-# Auto detect text files and perform LF normalization
+# ============================================================
+# Line ending policy for Operpatch / Check-RdpPatch
+# ============================================================
+# Default: let Git detect text files, do not auto-convert.
+# We pin specific types below to be explicit and reproducible.
 * text=auto
+
+# ---------- Source code ----------
+# PowerShell: keep LF in repository. PowerShell 5.1+ and 7+
+# handle LF fine on Windows, and LF avoids CRLF/LF churn between
+# contributors and CI.
+*.ps1   text eol=lf
+*.psm1  text eol=lf
+*.psd1  text eol=lf
+
+# Batch / cmd must stay CRLF — cmd.exe on old Windows chokes on LF.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Shell scripts must be LF, otherwise they won't run under /bin/sh.
+*.sh    text eol=lf
+
+# ---------- Docs & config ----------
+*.md    text eol=lf
+*.txt   text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+*.xml   text eol=lf
+*.psd1  text eol=lf
+
+# ---------- Binary (never touch) ----------
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.exe   binary
+*.dll   binary
+*.msu   binary
+*.zip   binary
+*.7z    binary

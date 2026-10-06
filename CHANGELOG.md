@@ -1,4 +1,4 @@
-﻿**English** | [Русский](CHANGELOG.ru.md)
+**English** | [Русский](CHANGELOG.ru.md)
 
 # Changelog
 
@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [Unreleased][]
 
 ### Planned
 - Network mode: scan a list of servers via `Invoke-Command`.
@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.1.0] — 2026-10-01
+## [1.1.0][] — 2026-10-01
 
 ### Added
 - Three-tier build classification:
@@ -80,7 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.4] — 2026-10-01
+## [1.0.4][] — 2026-10-01
 
 ### Fixed
 - **Removed the `Get-WindowsPackage` detection method** (previously
@@ -113,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.3] — 2026-10-01
+## [1.0.3][] — 2026-10-01
 
 ### Fixed
 - KB detection now uses the **Registry UBR** as the primary source.
@@ -134,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.2] — 2026-09-30
+## [1.0.2][] — 2026-09-30
 
 ### Added
 - README: screenshot of the "system protected" state
@@ -149,7 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.1] — 2026-09-30
+## [1.0.1][] — 2026-09-30
 
 ### Added
 - Author and license metadata in the script headers:
@@ -186,7 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-09-29
+## [1.0.0][] — 2026-09-29
 
 ### Added
 
@@ -234,7 +234,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.1.0] — 2026-09-29
+## [0.1.0][] — 2026-09-29
 
 ### Added
 - Initial concept of the console script for RDP bug diagnostics.
