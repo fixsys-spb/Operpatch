@@ -1,0 +1,81 @@
+name: Bug report
+description: Report a problem with Check-RdpPatch
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in as much as you can —
+        the more detail, the faster it can be fixed.
+
+  - type: input
+    id: version
+    attributes:
+      label: Check-RdpPatch version
+      description: Shown in the window title or via `(Get-Item .\Check-RdpPatch.exe).VersionInfo.ProductVersion`
+      placeholder: "1.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: form
+    attributes:
+      label: Which form are you using?
+      options:
+        - GUI (Check-RdpPatch.exe)
+        - GUI source (Check-RdpPatch-GUI.ps1)
+        - Console (Check-RdpPatch.ps1)
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Windows version and build
+      description: Run `[System.Environment]::OSVersion.Version` in PowerShell
+      placeholder: "10.0.20348 (Server 2022)"
+    validations:
+      required: true
+
+  - type: input
+    id: ubr
+    attributes:
+      label: UBR
+      description: Run `(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').UBR`
+      placeholder: "5631"
+    validations:
+      required: false
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe what you saw — copy the verdict text verbatim if you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run Check-RdpPatch.exe
+        2. ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output / screenshots
+      description: Paste the content of the verdict pane, or drag screenshots here.
+    validations:
+      required: false

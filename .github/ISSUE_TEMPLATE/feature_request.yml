@@ -1,8 +1,25 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Security issue
-    url: https://github.com/fixsys-spb/Operpatch/security/advisories/new
-    about: Please report vulnerabilities privately, not as public issues.
-  - name: Question / discussion
-    url: https://github.com/fixsys-spb/Operpatch/discussions
-    about: For questions about usage, please use Discussions.
+name: Feature request
+description: Suggest an improvement for Check-RdpPatch
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
