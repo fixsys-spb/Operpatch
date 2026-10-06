@@ -21,5 +21,18 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install remark-cli and preset
+        run: npm install --no-save remark-cli remark-preset-lint-recommended
+
+      - name: Create remark config
+        run: |
+          cat > .remarkrc.json << 'EOF'
+          {
+            "plugins": [
+              "remark-preset-lint-recommended"
+            ]
+          }
+          EOF
+
       - name: Run remark-lint
-        run: npx --yes remark CHANGELOG.md CHANGELOG.ru.md README.md README.ru.md --frail
+        run: npx remark CHANGELOG.md CHANGELOG.ru.md README.md README.ru.md --frail

@@ -22,7 +22,10 @@ jobs:
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
           $results = Invoke-ScriptAnalyzer -Path . -Recurse
           if ($results) {
-            $results | Format-Table -AutoSize
+            Write-Host "::group::PSScriptAnalyzer issues"
+            $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize -Wrap
+            Write-Host "::endgroup::"
+            # Пока не фейлим сборку — сначала посмотрим, что нашлось
             exit 1
           }
           Write-Host "PSScriptAnalyzer: no issues found."

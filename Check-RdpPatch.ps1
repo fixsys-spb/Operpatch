@@ -40,9 +40,9 @@
               Windows 11 (23H2, 24H2, 25H2, 26H1)
 #>
 
-[CmdletBinding()]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
     Justification = 'Interactive console script with colored output for the user')]
+[CmdletBinding()]
 param(
     [switch]$OpenLink
 )
