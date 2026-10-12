@@ -1,4 +1,4 @@
-﻿[English](README.md) | **Русский**
+[English](README.md) | **Русский**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue)]()

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     RDP Patch Check - GUI (September 2026 bug).
 

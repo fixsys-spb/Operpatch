@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Check for the RDP-hang bug (September 2026) and its fix per Windows build.
 
