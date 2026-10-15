@@ -8,10 +8,10 @@
     prints a clear verdict and (if needed) a download link.
 
     Detection uses four sources, in order of reliability:
-      1. Registry UBR        — primary, sees LCU/SSU bundles
-      2. Get-HotFix          — classic QFE/KB list
-      3. WUA COM history     — Microsoft.Update.Session installation log
-      4. DISM package match  — legacy KB package names (not LCU bundles)
+      1. Registry UBR        - primary, sees LCU/SSU bundles
+      2. Get-HotFix          - classic QFE/KB list
+      3. WUA COM history     - Microsoft.Update.Session installation log
+      4. DISM package match  - legacy KB package names (not LCU bundles)
 
     UBR is the most reliable method for cumulative updates, as it is
     always updated by LCU installation even when other sources miss it.
@@ -58,14 +58,29 @@ function Write-Dim  { param($m) Write-Host $m -ForegroundColor DarkGray }
 function Get-CurrentUbr {
     try {
         $ubr = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop).UBR
-        if ($null -ne $ubr -and $ubr -is [int]) {
-            return $ubr
-        }
+    } catch [System.Management.Automation.ItemNotFoundException] {
+        Write-Verbose "UBR registry key not found."
+        return $null
+    } catch [System.UnauthorizedAccessException], [System.Security.SecurityException] {
+        Write-Verbose "Access denied reading UBR: $($_.Exception.Message)"
         return $null
     } catch {
-        Write-Verbose "Failed to read UBR from registry: $($_.Exception.Message)"
+        Write-Warning "Unexpected error reading UBR: $($_.Exception.Message)"
         return $null
     }
+
+    # Explicit `return` here is deliberate, not redundant:
+    #   - `return $ubr` documents that this is the function's value.
+    #     A bare `$ubr` on the last line would also emit, but on scan
+    #     it's easy to miss and mistake for a no-op expression.
+    #   - `return $null` is load-bearing. A bare `$null` on the last
+    #     line does NOT emit to the pipeline in PowerShell - the
+    #     caller would see "no output" instead of "null value",
+    #     which is easy to mishandle.
+    if ($null -ne $ubr -and $ubr -is [int]) {
+        return $ubr
+    }
+    return $null
 }
 
 # --- Get OS ProductType for reliable Server/Client detection ---
@@ -76,7 +91,11 @@ function Get-OsProductType {
         return [int]$cim.ProductType
     } catch {
         Write-Verbose "Failed to query Win32_OperatingSystem: $($_.Exception.Message)"
-        return 0
+        # Return $null, NOT 0. Downstream code treats 0 as "not Server"
+        # and would silently pick the Client patch map. On build 26100
+        # (Server 2025 vs Win11 24H2) that produces a wrong-KB verdict.
+        # $null forces the caller to refuse rather than guess.
+        return $null
     }
 }
 
@@ -89,6 +108,10 @@ function Test-KbInstalled {
     )
 
     if ($KbId -notmatch '^KB\d+$') {
+        # Guard clause: early-return on invalid input.
+        # Without `return` the function would continue and probe the
+        # registry / WUA / DISM with a malformed KB ID - slow, and
+        # could theoretically match unrelated packages by accident.
         return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
     }
 
@@ -96,6 +119,9 @@ function Test-KbInstalled {
     if ($TargetUbr -gt 0) {
         $currentUbr = Get-CurrentUbr
         if ($null -ne $currentUbr -and $currentUbr -ge $TargetUbr) {
+            # First source that confirms installation wins - `return`
+            # stops the remaining three methods from running. This is
+            # the whole point of the try-each-method-in-order pattern.
             return [PSCustomObject]@{ Installed = $true; Source = 'Registry UBR'; Date = $null }
         }
     }
@@ -122,7 +148,12 @@ function Test-KbInstalled {
 
         if ($total -gt 0) {
             $maxRecords = [Math]::Min($total, 1000)
-            $history    = $searcher.QueryHistory(0, $maxRecords)
+            # QueryHistory returns records OLDEST-first. Reading from
+            # index 0 on a long-lived host gives us the oldest 1000
+            # entries, not the newest - recent installs can fall
+            # outside the window and produce a false "not installed".
+            $startIndex = $total - $maxRecords
+            $history    = $searcher.QueryHistory($startIndex, $maxRecords)
 
             $match = $history |
                      Where-Object { $_.Title -match [regex]::Escape($KbId) } |
@@ -153,6 +184,10 @@ function Test-KbInstalled {
         Write-Verbose "DISM check failed for $KbId : $($_.Exception.Message)"
     }
 
+    # Fallthrough: no source confirmed the KB. Explicit `return` keeps
+    # the contract unambiguous - every code path returns a PSCustomObject
+    # of the same shape (Installed / Source / Date), so the caller can
+    # read `.Installed` without null checks.
     return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
 }
 
@@ -188,7 +223,7 @@ $LegacyBuilds = [ordered]@{
 # Policy on UBR values:
 #   ProblemUbr / FixUbr are filled only when Microsoft explicitly
 #   documents the OS build for that KB in the Update Catalog card.
-#   Missing data is 0 — never a guess.
+#   Missing data is 0 - never a guess.
 #
 # Verified UBRs:
 #   Server 2019 (9245/9247), Server 2022 (5622/5631),
@@ -217,12 +252,12 @@ $ServerPatchMap = @{
 # Verified UBRs:
 #   Win10 1809 LTSC (9245/9247),
 #   Win10 21H2 (7725/7727), Win10 22H2 (7725/7727),
-#   Win11 23H2 (—/7584), Win11 24H2 (9445/9457),
+#   Win11 23H2 (-/7584), Win11 24H2 (9445/9457),
 #   Win11 25H2 (9445/9457), Win11 26H1 (2954/2956).
 #
-# Win10 1607 LTSB: UBR set to 0 — see $ServerPatchMap comment.
+# Win10 1607 LTSB: UBR set to 0 - see $ServerPatchMap comment.
 #
-# Out-of-servicing builds are intentionally absent — see $LegacyBuilds.
+# Out-of-servicing builds are intentionally absent - see $LegacyBuilds.
 
 $ClientPatchMap = @{
     14393 = @{ OS = "Windows 10 1607 / LTSB 2016"; Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;    FixUbr = 0 }
@@ -263,6 +298,16 @@ Write-Host ""
 
 # --- 2. Choose map based on ProductType (language-independent) ---
 $productType = Get-OsProductType
+if ($null -eq $productType) {
+    # Refuse to guess. This matters because Server 2025 and Windows 11
+    # 24H2 share build 26100 but have different fix KBs. A silent
+    # fallback to the Client map on a Server host would print a wrong
+    # verdict as if it were authoritative.
+    Write-Err "Cannot determine OS ProductType (Server vs Client)."
+    Write-Dim "This matters: Server 2025 and Windows 11 24H2 share build 26100"
+    Write-Dim "but have different fix KBs. Refusing to guess."
+    return
+}
 $isServer    = ($productType -eq 2) -or ($productType -eq 3)
 
 if ($isServer) {
@@ -276,11 +321,11 @@ if ($isServer) {
 # --- 3. Legacy / unsupported build check (client-side only) ---
 if (-not $isServer -and $LegacyBuilds.Contains($build)) {
     Write-Host ""
-    Write-Warn ("Build {0} — {1}" -f $build, $LegacyBuilds[$build])
+    Write-Warn ("Build {0} - {1}" -f $build, $LegacyBuilds[$build])
     Write-Warn "This build is out of servicing before September 2026."
     Write-Warn "The September 2026 RDP regression does not apply to this branch."
     Write-Host ""
-    Write-Dim "No KB check performed — there is no September 2026 RDP patch pair"
+    Write-Dim "No KB check performed - there is no September 2026 RDP patch pair"
     Write-Dim "for this Windows build."
     Write-Host ""
     Write-Dim "Note: this is NOT a safety verdict. The system may have"

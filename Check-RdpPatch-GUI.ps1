@@ -8,10 +8,10 @@
     with "Copy link" and "Open in browser" buttons.
 
     Detection uses four sources, with Registry UBR as primary:
-      1. Registry UBR        — sees LCU/SSU bundles
-      2. Get-HotFix          — classic QFE/KB list
-      3. WUA COM history     — Microsoft.Update.Session installation log
-      4. DISM package match  — legacy KB package names
+      1. Registry UBR        - sees LCU/SSU bundles
+      2. Get-HotFix          - classic QFE/KB list
+      3. WUA COM history     - Microsoft.Update.Session installation log
+      4. DISM package match  - legacy KB package names
 
     ProductType is used for accurate Server vs. Client detection,
     independent of OS caption localization.
@@ -41,14 +41,29 @@ Add-Type -AssemblyName System.Drawing
 function Get-CurrentUbr {
     try {
         $ubr = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop).UBR
-        if ($null -ne $ubr -and $ubr -is [int]) {
-            return $ubr
-        }
+    } catch [System.Management.Automation.ItemNotFoundException] {
+        Write-Verbose "UBR registry key not found."
+        return $null
+    } catch [System.UnauthorizedAccessException], [System.Security.SecurityException] {
+        Write-Verbose "Access denied reading UBR: $($_.Exception.Message)"
         return $null
     } catch {
-        Write-Verbose "Failed to read UBR from registry: $($_.Exception.Message)"
+        Write-Warning "Unexpected error reading UBR: $($_.Exception.Message)"
         return $null
     }
+
+    # Explicit `return` here is deliberate, not redundant:
+    #   - `return $ubr` documents that this is the function's value.
+    #     A bare `$ubr` on the last line would also emit, but on scan
+    #     it's easy to miss and mistake for a no-op expression.
+    #   - `return $null` is load-bearing. A bare `$null` on the last
+    #     line does NOT emit to the pipeline in PowerShell - the
+    #     caller would see "no output" instead of "null value",
+    #     which is easy to mishandle.
+    if ($null -ne $ubr -and $ubr -is [int]) {
+        return $ubr
+    }
+    return $null
 }
 
 # ---------- Get OS ProductType for reliable Server/Client detection ----------
@@ -59,7 +74,11 @@ function Get-OsProductType {
         return [int]$cim.ProductType
     } catch {
         Write-Verbose "Failed to query Win32_OperatingSystem: $($_.Exception.Message)"
-        return 0
+        # Return $null, NOT 0. Downstream code treats 0 as "not Server"
+        # and would silently pick the Client patch map. On build 26100
+        # (Server 2025 vs Win11 24H2) that produces a wrong-KB verdict.
+        # $null forces the caller to refuse rather than guess.
+        return $null
     }
 }
 
@@ -72,6 +91,10 @@ function Test-KbInstalled {
     )
 
     if ($KbId -notmatch '^KB\d+$') {
+        # Guard clause: early-return on invalid input.
+        # Without `return` the function would continue and probe the
+        # registry / WUA / DISM with a malformed KB ID - slow, and
+        # could theoretically match unrelated packages by accident.
         return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
     }
 
@@ -79,6 +102,9 @@ function Test-KbInstalled {
     if ($TargetUbr -gt 0) {
         $currentUbr = Get-CurrentUbr
         if ($null -ne $currentUbr -and $currentUbr -ge $TargetUbr) {
+            # First source that confirms installation wins - `return`
+            # stops the remaining three methods from running. This is
+            # the whole point of the try-each-method-in-order pattern.
             return [PSCustomObject]@{ Installed = $true; Source = 'Registry UBR'; Date = $null }
         }
     }
@@ -105,7 +131,12 @@ function Test-KbInstalled {
 
         if ($total -gt 0) {
             $maxRecords = [Math]::Min($total, 1000)
-            $history    = $searcher.QueryHistory(0, $maxRecords)
+            # QueryHistory returns records OLDEST-first. Reading from
+            # index 0 on a long-lived host gives us the oldest 1000
+            # entries, not the newest - recent installs can fall
+            # outside the window and produce a false "not installed".
+            $startIndex = $total - $maxRecords
+            $history    = $searcher.QueryHistory($startIndex, $maxRecords)
 
             $match = $history |
                      Where-Object { $_.Title -match [regex]::Escape($KbId) } |
@@ -134,6 +165,10 @@ function Test-KbInstalled {
         Write-Verbose "DISM check failed for $KbId : $($_.Exception.Message)"
     }
 
+    # Fallthrough: no source confirmed the KB. Explicit `return` keeps
+    # the contract unambiguous - every code path returns a PSCustomObject
+    # of the same shape (Installed / Source / Date), so the caller can
+    # read `.Installed` without null checks.
     return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
 }
 
@@ -161,13 +196,13 @@ $LegacyBuilds = [ordered]@{
 # ================= SUPPORTED: SERVER =================
 # UBR policy: ProblemUbr / FixUbr are filled only when Microsoft explicitly
 # documents the OS build for that KB in the Update Catalog card.
-# Missing data is 0 — never a guess.
+# Missing data is 0 - never a guess.
 #
 # Verified UBRs:
 #   Server 2019 (9245/9247), Server 2022 (5622/5631),
 #   Server 2025 (33438/33451).
 #
-# Server 2016: UBR set to 0 — live-server check showed 9339 after KB5129239,
+# Server 2016: UBR set to 0 - live-server check showed 9339 after KB5129239,
 # while the Microsoft catalog lists 9514. UBR detection disabled for 14393.
 
 $ServerPatchMap = @{
@@ -183,10 +218,10 @@ $ServerPatchMap = @{
 # Verified UBRs:
 #   Win10 1809 LTSC (9245/9247),
 #   Win10 21H2 (7725/7727), Win10 22H2 (7725/7727),
-#   Win11 23H2 (—/7584), Win11 24H2 (9445/9457),
+#   Win11 23H2 (-/7584), Win11 24H2 (9445/9457),
 #   Win11 25H2 (9445/9457), Win11 26H1 (2954/2956).
 #
-# Win10 1607 LTSB: UBR set to 0 — see $ServerPatchMap comment.
+# Win10 1607 LTSB: UBR set to 0 - see $ServerPatchMap comment.
 
 $ClientPatchMap = @{
     14393 = @{ OS = "Windows 10 1607 / LTSB 2016"; Problem = "KB5123099"; Fix = "KB5129239"; ProblemUbr = 0;    FixUbr = 0 }
@@ -204,6 +239,20 @@ $os       = Get-CimInstance Win32_OperatingSystem |
             Select-Object Caption, Version, BuildNumber, OSArchitecture
 $build    = [int]$os.BuildNumber
 $productType = Get-OsProductType
+if ($null -eq $productType) {
+    # Refuse to guess. This matters because Server 2025 and Windows 11
+    # 24H2 share build 26100 but have different fix KBs. A silent
+    # fallback to the Client map on a Server host would show a wrong
+    # verdict in a modal window as if it were authoritative.
+    [System.Windows.Forms.MessageBox]::Show(
+        "Cannot determine OS ProductType (Server vs Client).`r`n`r`n" +
+        "Server 2025 and Windows 11 24H2 share build 26100 but have " +
+        "different fix KBs. Refusing to guess.",
+        "RDP Patch Check",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    return
+}
 $isServer = ($productType -eq 2) -or ($productType -eq 3)
 $map      = if ($isServer) { $ServerPatchMap } else { $ClientPatchMap }
 $currentUbr = Get-CurrentUbr
@@ -224,11 +273,11 @@ if ($null -ne $currentUbr) {
 if (-not $isServer -and $LegacyBuilds.Contains($build)) {
     # Legacy / out-of-servicing build
     [void]$statusLines.Add("")
-    [void]$statusLines.Add(("Build {0} — {1}" -f $build, $LegacyBuilds[$build]))
+    [void]$statusLines.Add(("Build {0} - {1}" -f $build, $LegacyBuilds[$build]))
     [void]$statusLines.Add("This build is out of servicing before September 2026.")
     [void]$statusLines.Add("The September 2026 RDP regression does not apply to this branch.")
     [void]$statusLines.Add("")
-    [void]$statusLines.Add("No KB check performed — there is no September 2026 RDP")
+    [void]$statusLines.Add("No KB check performed - there is no September 2026 RDP")
     [void]$statusLines.Add("patch pair for this Windows build.")
     [void]$statusLines.Add("")
     [void]$statusLines.Add("Note: this is NOT a safety verdict. The system may have")
@@ -245,7 +294,7 @@ elseif (-not $map.ContainsKey($build)) {
     [void]$statusLines.Add("  - A future release not yet covered by this tool")
 }
 else {
-    # Supported build — perform KB check
+    # Supported build - perform KB check
     $info    = $map[$build]
     $fixUrl  = "https://www.catalog.update.microsoft.com/Search.aspx?q=$($info.Fix)"
 
@@ -279,7 +328,7 @@ else {
 
 # ---------- Form ----------
 $form = New-Object System.Windows.Forms.Form
-$form.Text            = "RDP Patch Check — September 2026"
+$form.Text            = "RDP Patch Check - September 2026"
 $form.Size            = New-Object System.Drawing.Size(720, 620)
 $form.StartPosition   = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -333,7 +382,7 @@ foreach ($line in $statusLines) {
     elseif ($line -match '^Note:')                  { $color = [System.Drawing.Color]::Gray }
     elseif ($line -match '^This build may be:')     { $color = [System.Drawing.Color]::Gray }
     elseif ($line -match '^  -')                    { $color = [System.Drawing.Color]::Gray }
-    elseif ($line -match '^Build \d+ —')            { $color = [System.Drawing.Color]::FromArgb(192, 96, 0) }
+    elseif ($line -match '^Build \d+ -')            { $color = [System.Drawing.Color]::FromArgb(192, 96, 0) }
     elseif ($line -match 'out of servicing')        { $color = [System.Drawing.Color]::FromArgb(192, 96, 0) }
     elseif ($line -match '^No KB check performed')  { $color = [System.Drawing.Color]::Gray }
     elseif ($line -match '^No patch data available'){ $color = [System.Drawing.Color]::FromArgb(192, 96, 0) }
@@ -421,7 +470,18 @@ $rerunBtn.Add_Click({
     }
 
     if ($exePath -and (Test-Path $exePath)) {
-        Start-Process -FilePath $exePath
+        # `Start-Process` on a .ps1 file does NOT run it - Windows opens
+        # it in the default editor (usually Notepad or VS Code). Only
+        # the compiled .exe case works with a direct Start-Process.
+        # For .ps1 we go through powershell.exe -File.
+        if ($exePath -match '\.ps1$') {
+            Start-Process -FilePath 'powershell.exe' -ArgumentList @(
+                '-NoProfile','-ExecutionPolicy','Bypass',
+                '-File', "`"$exePath`""
+            )
+        } else {
+            Start-Process -FilePath $exePath
+        }
         $form.Close()
     } else {
         [System.Windows.Forms.MessageBox]::Show(
