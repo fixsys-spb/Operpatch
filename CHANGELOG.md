@@ -30,11 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     Server 2016 disablement.
   - README: "Supported systems" section rewritten into three tiers
     (Supported / Legacy / Unknown).
+  - README (EN and RU): detection-source enumeration in Step 3 corrected.
+    `via Registry UBR` was missing from the list, which contradicted both
+    the code and the "Verified UBR values" table below.
+  - README (EN and RU): FAQ entry for `Get-HotFix` clarified — the tool
+    falls back to Registry UBR when the update is bundled as an LCU and
+    does not appear in the QFE list.
 
 ### Added
 - `.gitattributes` to normalize line endings across the repository
   (LF for source and docs, CRLF for `.bat`/`.cmd`, binary for images
   and executables).
+- README (EN and RU): "Verified on" section with a summary table of
+  live systems tested (Server 2016/2019/2022, Windows 10 22H2), the
+  UBR at the time of testing, the resulting verdict, and the detection
+  source that produced it.
 
 ### Changed
 - GitHub Code Scanning now reports 0 open alerts across all four tools

@@ -34,7 +34,7 @@ One of three states will be shown:
 | "Fix IS installed" | The bug is present but already mitigated | Nothing |
 | "Fix is NOT installed. ACTION REQUIRED" | The bug is present, unprotected | Download the fix (Step 4) |
 
-When the problematic update and its fix are both installed, the verdict confirms the system is protected. Detection reports the source (`via WUA History`, `via Get-HotFix`, or `via DISM`):
+When the problematic update and its fix are both installed, the verdict confirms the system is protected. Detection reports the source (`via Registry UBR`, `via Get-HotFix`, `via WUA History`, or `via DISM`):
 
 ![System protected](image/Check-RdpPatch-screenshot4.png)
 
@@ -209,7 +209,7 @@ Antivirus flags the EXE.
 Some antivirus products flag PS2EXE-built executables as suspicious. Add the file to exclusions.
 
 `Get-HotFix` returns nothing.
-Run PowerShell as Administrator.
+Run PowerShell as Administrator. If the list is still empty, the update may be bundled as a cumulative update (LCU) and not appear in `Get-HotFix` — in that case the tool detects it via Registry UBR automatically.
 
 Console encoding shows garbled characters.
 Output is deliberately in English to avoid CP866 issues.
@@ -246,6 +246,19 @@ The verdict reports which source confirmed each KB. UBR values are **verified on
 | Windows 11 26H1 | 2954 | 2956 |
 
 Where the field shows `—`, UBR-based detection is disabled and the tool relies on Get-HotFix / WUA History / DISM.
+
+## Verified on
+
+The tool has been tested on the following live systems.
+
+| System | Build | UBR | Scenario | Detection source |
+|---|---|---|---|---|
+| Windows Server 2016 | 14393 | 9339 | protected | Get-HotFix |
+| Windows Server 2019 | 17763 | 9247 | protected | Registry UBR |
+| Windows Server 2022 | 20348 | 5631 | protected | Registry UBR |
+| Windows 10 22H2 | 19045 | 6456 | not affected | (problem KB absent) |
+
+Tested in all three forms: `.ps1`, GUI `.ps1`, compiled `.exe`.
 
 ## License
 
