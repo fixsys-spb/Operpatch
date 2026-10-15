@@ -9,7 +9,7 @@
 
 A diagnostic tool for the RDP hang bug introduced by the September 2026 Windows cumulative updates.
 
-![Check-RdpPatch screenshot](Check-RdpPatch-screenshot.png)
+![Check-RdpPatch screenshot](image/Check-RdpPatch-screenshot.png)
 
 ## How to use
 
@@ -36,7 +36,7 @@ One of three states will be shown:
 
 When the problematic update and its fix are both installed, the verdict confirms the system is protected. Detection reports the source (`via WUA History`, `via Get-HotFix`, or `via DISM`):
 
-![System protected](Check-RdpPatch-screenshot4.png)
+![System protected](image/Check-RdpPatch-screenshot4.png)
 
 ### Step 4. Install the fix (if required)
 
@@ -67,13 +67,13 @@ Run `Check-RdpPatch.exe` again. The verdict should now read "Fix IS installed".
 
 Running the `.msu` installer again will report that the update is already installed on this computer. This is expected — no second installation is needed, and it will not harm the system.
 
-![Fix already installed](Check-RdpPatch-screenshot2.png)
+![Fix already installed](image/Check-RdpPatch-screenshot2.png)
 
 ## What to do right now
 
 If the problematic update is being installed right now (Windows Update shows the progress bar), act quickly.
 
-![Problem update is installing right now](Check-RdpPatch-screenshot3.png)
+![Problem update is installing right now](image/Check-RdpPatch-screenshot3.png)
 
 ### 1. Immediately check the installation status
 
