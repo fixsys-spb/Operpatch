@@ -32,7 +32,7 @@
     Author:  fixsys-spb
     GitHub:  https://github.com/fixsys-spb/Operpatch
     Date:    2026-10-01
-    Version: 1.1.0
+    Version: 1.1.1
     License: MIT (see LICENSE)
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
@@ -281,7 +281,7 @@ try {
     $build = [int]$os.BuildNumber
 } catch {
     Write-Err "Failed to query OS information: $($_.Exception.Message)"
-    Write-Dim "`nCheck-RdpPatch v1.1.0  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+    Write-Dim "`nCheck-RdpPatch v1.1.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
     return
 }
 
@@ -331,7 +331,7 @@ if (-not $isServer -and $LegacyBuilds.Contains($build)) {
     Write-Dim "Note: this is NOT a safety verdict. The system may have"
     Write-Dim "      other unpatched vulnerabilities."
     Write-Host ""
-    Write-Dim "Check-RdpPatch v1.1.0  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+    Write-Dim "Check-RdpPatch v1.1.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
     return
 }
 
@@ -343,7 +343,7 @@ if (-not $map.ContainsKey($build)) {
     Write-Warn "  - Not yet affected by the September 2026 RDP bug"
     Write-Warn "  - An insider / preview build"
     Write-Warn "  - A future release not yet covered by this tool"
-    Write-Dim "`nCheck-RdpPatch v1.1.0  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+    Write-Dim "`nCheck-RdpPatch v1.1.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
     return
 }
 
@@ -429,5 +429,5 @@ if ($info.Fix) {
 }
 
 Write-Host ""
-Write-Dim "Check-RdpPatch v1.1.0  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+Write-Dim "Check-RdpPatch v1.1.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
 Write-Host ""

@@ -43,6 +43,39 @@
 
 ---
 
+## [1.1.1][] — 2026-10-15
+
+### Исправлено
+- `Get-OsProductType` теперь возвращает `$null` вместо `0` при
+  ошибке. Ранее сбой CIM/WMI интерпретировался ниже по коду как
+  «не Server → использовать клиентскую карту». На сборке 26100
+  (Server 2025 vs Win11 24H2) это могло дать вердикт по чужим KB.
+  Теперь скрипты отказываются угадывать, если ProductType
+  неизвестен.
+- `Get-CurrentUbr` сузил фильтр исключений до конкретных типов
+  (`ItemNotFoundException`, `UnauthorizedAccessException`,
+  `SecurityException`). Неожиданные ошибки теперь выводятся как
+  предупреждения, а не проглатываются молча generic-`catch`.
+- Запрос истории WUA (`QueryHistory`) теперь читается с конца
+  журнала. Ранее читалось с индекса 0, что на долгоживущих хостах
+  возвращало самые старые 1000 записей и могло дать ложный вердикт
+  «исправление не установлено».
+- GUI: кнопка «Re-check» теперь запускает скрипт через
+  `powershell.exe -File`, а не `Start-Process` напрямую по `.ps1`.
+  Прежнее поведение открывало скрипт в редакторе по умолчанию
+  вместо запуска.
+
+### Изменено
+- Длинное тире (`—`) заменено на ASCII-дефис (`-`) во всех
+  исходных файлах. В файлах, хранимых в UTF-8 без BOM, длинное
+  тире некорректно интерпретировалось PowerShell на не-UTF-8
+  локалях Windows, что вызывало ошибку парсера.
+
+### Примечания
+- Ответ на ревью от u/JSChronicles на r/PowerShell.
+
+---
+
 ## [1.1.0][] — 2026-10-01
 
 ### Добавлено
@@ -282,7 +315,8 @@
    **Исправлено**, **Безопасность**.
 4. Дата релиза — `YYYY-MM-DD`.
 
-[Unreleased]: https://github.com/fixsys-spb/Operpatch/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/fixsys-spb/Operpatch/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/fixsys-spb/Operpatch/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/fixsys-spb/Operpatch/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/fixsys-spb/Operpatch/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/fixsys-spb/Operpatch/compare/v1.0.2...v1.0.3

@@ -25,7 +25,7 @@
     Author:  fixsys-spb
     GitHub:  https://github.com/fixsys-spb/Operpatch
     Date:    2026-10-01
-    Version: 1.1.0
+    Version: 1.1.1
     License: MIT (see LICENSE)
     Supports:
       Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
@@ -356,7 +356,7 @@ $form.Controls.Add($subtitle)
 
 # Author line
 $author = New-Object System.Windows.Forms.Label
-$author.Text      = "v1.1.0  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+$author.Text      = "v1.1.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
 $author.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
 $author.ForeColor = [System.Drawing.Color]::Gray
 $author.Location  = New-Object System.Drawing.Point(22, 63)

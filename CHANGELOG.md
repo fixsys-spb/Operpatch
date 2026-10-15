@@ -42,6 +42,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.1][] — 2026-10-15
+
+### Fixed
+- `Get-OsProductType` now returns `$null` instead of `0` on failure.
+  Previously a CIM/WMI failure was interpreted downstream as "not
+  Server → use Client map". On build 26100 (Server 2025 vs Win11 24H2)
+  that could produce a wrong-KB verdict. The scripts now refuse to
+  guess when ProductType is unknown.
+- `Get-CurrentUbr` narrowed its exception filter to specific types
+  (`ItemNotFoundException`, `UnauthorizedAccessException`,
+  `SecurityException`). Unexpected errors now surface as warnings
+  instead of being silently swallowed by a generic `catch`.
+- WUA history query (`QueryHistory`) now reads from the end of the
+  log. Previously it read from index 0, which on long-lived hosts
+  returned the oldest 1000 records and could produce a false
+  "fix not installed" verdict.
+- GUI: "Re-check" button now launches the script via
+  `powershell.exe -File` instead of `Start-Process` directly on a
+  `.ps1` file. The previous behavior opened the script in the
+  default editor rather than running it.
+
+### Changed
+- Replaced em-dash (`—`) with ASCII hyphen (`-`) throughout source
+  files. In files stored as UTF-8 without BOM, the em-dash was
+  misinterpreted by PowerShell on non-UTF-8 Windows locales,
+  causing a parser error.
+
+### Notes
+- Addresses review feedback from u/JSChronicles on r/PowerShell.
+
+---
+
 ## [1.1.0][] — 2026-10-01
 
 ### Added
@@ -282,7 +314,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
    **Fixed**, **Security**.
 4. Release date format — `YYYY-MM-DD`.
 
-[Unreleased]: https://github.com/fixsys-spb/Operpatch/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/fixsys-spb/Operpatch/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/fixsys-spb/Operpatch/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/fixsys-spb/Operpatch/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/fixsys-spb/Operpatch/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/fixsys-spb/Operpatch/compare/v1.0.2...v1.0.3
