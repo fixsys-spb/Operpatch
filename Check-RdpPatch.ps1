@@ -1,44 +1,47 @@
 <#
 .SYNOPSIS
-    Check for the RDP-hang bug (September 2026) and its fix per Windows build.
+Check for the RDP-hang bug (September 2026) and its fix per Windows build.
 
 .DESCRIPTION
-    Detects OS build, decides whether it is Server or Client,
-    checks for the problematic update and the OOB fix,
-    prints a clear verdict and (if needed) a download link.
+Detects OS build, decides whether it is Server or Client,
+checks for the problematic update and the OOB fix,
+prints a clear verdict and (if needed) a download link.
 
-    Detection uses four sources, in order of reliability:
-      1. Registry UBR        - primary, sees LCU/SSU bundles
-      2. Get-HotFix          - classic QFE/KB list
-      3. WUA COM history     - Microsoft.Update.Session installation log
-      4. DISM package match  - legacy KB package names (not LCU bundles)
+Detection uses four sources, in order of reliability:
+  1. Registry UBR        - primary, sees LCU/SSU bundles
+  2. Get-HotFix          - classic QFE/KB list
+  3. WUA COM history     - Microsoft.Update.Session installation log
+  4. DISM package match  - legacy KB package names (not LCU bundles)
 
-    UBR is the most reliable method for cumulative updates, as it is
-    always updated by LCU installation even when other sources miss it.
+UBR is the most reliable method for cumulative updates, as it is
+always updated by LCU installation even when other sources miss it.
 
-    ProductType is used for accurate Server vs. Client detection,
-    independent of OS caption localization.
+ProductType is used for accurate Server vs. Client detection,
+independent of OS caption localization.
 
-    Builds are split into three tiers:
-      - Supported  : September 2026 RDP matrix (KB check performed)
-      - Legacy     : out of servicing before Sept 2026 (no KB check)
-      - Unknown    : not in our maps (no KB check)
+Builds are split into three tiers:
+  - Supported  : September 2026 RDP matrix (KB check performed)
+  - Legacy     : out of servicing before Sept 2026 (no KB check)
+  - Unknown    : not in our maps (no KB check)
 
 .PARAMETER OpenLink
-    Open the Microsoft Update Catalog link in the default browser
-    if the fix is required but not installed.
+Open the Microsoft Update Catalog link in the default browser
+only if the fix is required but not installed.
 
 .NOTES
-    Author:  fixsys-spb
-    GitHub:  https://github.com/fixsys-spb/Operpatch
-    Date:    2026-10-01
-    Version: 1.1.1
-    License: MIT (see LICENSE)
-    Supports:
-      Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
-      Client: Windows 10 (1607 LTSB, 1809 LTSC, 21H2, 22H2),
-              Windows 11 (23H2, 24H2, 25H2, 26H1)
+Author:  fixsys-spb
+GitHub:  https://github.com/fixsys-spb/Operpatch
+Date:    2026-10-16
+Version: 1.1.3
+License: MIT (see LICENSE)
+
+Supports:
+Server: 2012, 2012 R2, 2016, 2019, 2022, 2025
+Client: Windows 10 (1607 LTSB, 1809 LTSC, 21H2, 22H2),
+        Windows 11 (23H2, 24H2, 25H2, 26H1)
 #>
+
+#Requires -Version 5.1
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
     Justification = 'Interactive console script with colored output for the user')]
@@ -47,56 +50,78 @@ param(
     [switch]$OpenLink
 )
 
+$script:Version  = '1.1.3'
+$script:ExitCode = 0
+
 # --- Colored output helpers ---
-function Write-Info { param($m) Write-Host $m -ForegroundColor Cyan }
-function Write-Ok   { param($m) Write-Host $m -ForegroundColor Green }
-function Write-Warn { param($m) Write-Host $m -ForegroundColor Yellow }
-function Write-Err  { param($m) Write-Host $m -ForegroundColor Red }
-function Write-Dim  { param($m) Write-Host $m -ForegroundColor DarkGray }
+function Write-Info { param([string]$m) Write-Host $m -ForegroundColor Cyan }
+function Write-Ok   { param([string]$m) Write-Host $m -ForegroundColor Green }
+function Write-Warn { param([string]$m) Write-Host $m -ForegroundColor Yellow }
+function Write-Err  { param([string]$m) Write-Host $m -ForegroundColor Red }
+function Write-Dim  { param([string]$m) Write-Host $m -ForegroundColor DarkGray }
+
+function Write-Footer {
+    Write-Dim "Check-RdpPatch v$script:Version  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+}
+
+# --- Admin check ---
+function Test-IsAdmin {
+    try {
+        $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal = New-Object -TypeName Security.Principal.WindowsPrincipal -ArgumentList $identity
+        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    catch {
+        return $false
+    }
+}
 
 # --- Get current UBR from registry ---
 function Get-CurrentUbr {
     try {
-        $ubr = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop).UBR
-    } catch [System.Management.Automation.ItemNotFoundException] {
+        $ubr = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop).UBR
+    }
+    catch [System.Management.Automation.ItemNotFoundException] {
         Write-Verbose "UBR registry key not found."
         return $null
-    } catch [System.UnauthorizedAccessException], [System.Security.SecurityException] {
+    }
+    catch [System.UnauthorizedAccessException], [System.Security.SecurityException] {
         Write-Verbose "Access denied reading UBR: $($_.Exception.Message)"
         return $null
-    } catch {
+    }
+    catch {
         Write-Warning "Unexpected error reading UBR: $($_.Exception.Message)"
         return $null
     }
 
-    # Explicit `return` here is deliberate, not redundant:
-    #   - `return $ubr` documents that this is the function's value.
-    #     A bare `$ubr` on the last line would also emit, but on scan
-    #     it's easy to miss and mistake for a no-op expression.
-    #   - `return $null` is load-bearing. A bare `$null` on the last
-    #     line does NOT emit to the pipeline in PowerShell - the
-    #     caller would see "no output" instead of "null value",
-    #     which is easy to mishandle.
-    if ($null -ne $ubr -and $ubr -is [int]) {
-        return $ubr
+    if ($null -ne $ubr) {
+        try {
+            return [int]$ubr
+        }
+        catch {
+            Write-Verbose "UBR value is not convertible to int: $ubr"
+            return $null
+        }
     }
+
     return $null
 }
 
-# --- Get OS ProductType for reliable Server/Client detection ---
-# ProductType: 1 = Workstation, 2 = Domain Controller, 3 = Server
-function Get-OsProductType {
-    try {
-        $cim = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
-        return [int]$cim.ProductType
-    } catch {
-        Write-Verbose "Failed to query Win32_OperatingSystem: $($_.Exception.Message)"
-        # Return $null, NOT 0. Downstream code treats 0 as "not Server"
-        # and would silently pick the Client patch map. On build 26100
-        # (Server 2025 vs Win11 24H2) that produces a wrong-KB verdict.
-        # $null forces the caller to refuse rather than guess.
-        return $null
+# --- Cached DISM package list ---
+$script:DismPackageCache = $null
+
+function Get-DismPackageList {
+    if ($null -eq $script:DismPackageCache) {
+        try {
+            $script:DismPackageCache = @(dism.exe /online /get-packages 2>$null)
+        }
+        catch {
+            Write-Verbose "DISM package list failed: $($_.Exception.Message)"
+            $script:DismPackageCache = @()
+        }
     }
+
+    return $script:DismPackageCache
 }
 
 # --- Multi-source KB detection ---
@@ -104,39 +129,69 @@ function Test-KbInstalled {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$KbId,
-        [int]$TargetUbr = 0
+        [int]$TargetUbr = 0,
+        [object]$CurrentUbr = $null
     )
 
+    $KbId = $KbId.Trim().ToUpperInvariant()
+
     if ($KbId -notmatch '^KB\d+$') {
-        # Guard clause: early-return on invalid input.
-        # Without `return` the function would continue and probe the
-        # registry / WUA / DISM with a malformed KB ID - slow, and
-        # could theoretically match unrelated packages by accident.
-        return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
+        return [PSCustomObject]@{
+            Installed = $false
+            Source    = 'invalid'
+            Date      = $null
+        }
     }
 
     # Method 1: Registry UBR
     if ($TargetUbr -gt 0) {
-        $currentUbr = Get-CurrentUbr
-        if ($null -ne $currentUbr -and $currentUbr -ge $TargetUbr) {
-            # First source that confirms installation wins - `return`
-            # stops the remaining three methods from running. This is
-            # the whole point of the try-each-method-in-order pattern.
-            return [PSCustomObject]@{ Installed = $true; Source = 'Registry UBR'; Date = $null }
+        if ($null -eq $CurrentUbr) {
+            $CurrentUbr = Get-CurrentUbr
+        }
+
+        if ($null -ne $CurrentUbr) {
+            try {
+                $currentUbrValue = [int]$CurrentUbr
+
+                if ($currentUbrValue -ge $TargetUbr) {
+                    Write-Verbose "UBR threshold matched: current=$currentUbrValue target=$TargetUbr for $KbId"
+                    return [PSCustomObject]@{
+                        Installed = $true
+                        Source    = 'Registry UBR'
+                        Date      = $null
+                    }
+                }
+            }
+            catch {
+                Write-Verbose "Failed to convert CurrentUbr to int for $KbId : $($_.Exception.Message)"
+            }
         }
     }
 
     # Method 2: Get-HotFix
     try {
-        $hotfix = Get-HotFix -Id $KbId -ErrorAction SilentlyContinue
+        $hotfix = Get-HotFix -Id $KbId -ErrorAction SilentlyContinue | Select-Object -First 1
+
         if ($hotfix) {
             $installDate = $null
+
             if ($hotfix.InstalledOn) {
-                $installDate = [datetime]$hotfix.InstalledOn
+                try {
+                    $installDate = [datetime]$hotfix.InstalledOn
+                }
+                catch {
+                    Write-Verbose "Failed to parse InstallDate for $KbId from Get-HotFix: $($_.Exception.Message)"
+                }
             }
-            return [PSCustomObject]@{ Installed = $true; Source = 'Get-HotFix'; Date = $installDate }
+
+            return [PSCustomObject]@{
+                Installed = $true
+                Source    = 'Get-HotFix'
+                Date      = $installDate
+            }
         }
-    } catch {
+    }
+    catch {
         Write-Verbose "Get-HotFix check failed for $KbId : $($_.Exception.Message)"
     }
 
@@ -148,47 +203,109 @@ function Test-KbInstalled {
 
         if ($total -gt 0) {
             $maxRecords = [Math]::Min($total, 1000)
-            # QueryHistory returns records OLDEST-first. Reading from
-            # index 0 on a long-lived host gives us the oldest 1000
-            # entries, not the newest - recent installs can fall
-            # outside the window and produce a false "not installed".
+
+            # QueryHistory returns records oldest-first.
+            # Read the newest window, not the oldest one.
             $startIndex = $total - $maxRecords
             $history    = $searcher.QueryHistory($startIndex, $maxRecords)
 
+            $pattern = "\b$([regex]::Escape($KbId))\b"
+
             $match = $history |
-                     Where-Object { $_.Title -match [regex]::Escape($KbId) } |
-                     Sort-Object Date -Descending |
-                     Select-Object -First 1
+                Where-Object { $_.Title -and $_.Title -match $pattern } |
+                Sort-Object -Property Date -Descending |
+                Select-Object -First 1
 
             if ($match) {
                 $instDate = $null
+
                 if ($match.Date) {
-                    $instDate = [datetime]$match.Date
+                    try {
+                        $instDate = [datetime]$match.Date
+                    }
+                    catch {
+                        Write-Verbose "Failed to parse Date for $KbId from WUA history: $($_.Exception.Message)"
+                    }
                 }
-                return [PSCustomObject]@{ Installed = $true; Source = 'WUA History'; Date = $instDate }
+
+                return [PSCustomObject]@{
+                    Installed = $true
+                    Source    = 'WUA History'
+                    Date      = $instDate
+                }
             }
         }
-    } catch {
+    }
+    catch {
         Write-Verbose "WUA COM history check failed for $KbId : $($_.Exception.Message)"
     }
 
     # Method 4: DISM package name match (legacy packages only)
-    # Note: LCU/SSU bundles are named "Package_for_RollupFix~...~build.ubr"
+    # Note: LCU/SSU bundles are usually named Package_for_RollupFix~...~build.ubr
     # and are detected via Registry UBR (Method 1), not here.
     try {
-        $dismOutput = & dism.exe /online /get-packages 2>$null
-        if ($dismOutput -and $dismOutput -match "Package_for_$([regex]::Escape($KbId))\b") {
-            return [PSCustomObject]@{ Installed = $true; Source = 'DISM'; Date = $null }
+        $dismText = (Get-DismPackageList) -join [Environment]::NewLine
+        $pattern  = "Package_for_$([regex]::Escape($KbId))\b"
+
+        if ($dismText -and $dismText -match $pattern) {
+            return [PSCustomObject]@{
+                Installed = $true
+                Source    = 'DISM'
+                Date      = $null
+            }
         }
-    } catch {
+    }
+    catch {
         Write-Verbose "DISM check failed for $KbId : $($_.Exception.Message)"
     }
 
-    # Fallthrough: no source confirmed the KB. Explicit `return` keeps
-    # the contract unambiguous - every code path returns a PSCustomObject
-    # of the same shape (Installed / Source / Date), so the caller can
-    # read `.Installed` without null checks.
-    return [PSCustomObject]@{ Installed = $false; Source = 'none'; Date = $null }
+    # Fallthrough: no source confirmed the KB.
+    return [PSCustomObject]@{
+        Installed = $false
+        Source    = 'none'
+        Date      = $null
+    }
+}
+
+# --- Patch map validation ---
+function Assert-PatchMap {
+    param(
+        [hashtable]$Map,
+        [string]$MapName
+    )
+
+    foreach ($build in $Map.Keys) {
+        $entry = $Map[$build]
+
+        $problem = if ($entry.Problem) { [string]$entry.Problem } else { '' }
+        $fix     = if ($entry.Fix)     { [string]$entry.Fix }     else { '' }
+
+        $problem = $problem.Trim().ToUpperInvariant()
+        $fix     = $fix.Trim().ToUpperInvariant()
+
+        $problemUbr = [int]$entry.ProblemUbr
+        $fixUbr     = [int]$entry.FixUbr
+
+        if ($problem -notmatch '^KB\d+$') {
+            throw "$MapName build $build has invalid Problem KB: '$($entry.Problem)'"
+        }
+
+        if ($fix -notmatch '^KB\d+$') {
+            throw "$MapName build $build has invalid Fix KB: '$($entry.Fix)'"
+        }
+
+        if ($problemUbr -lt 0) {
+            throw "$MapName build $build has negative ProblemUbr: $problemUbr"
+        }
+
+        if ($fixUbr -lt 0) {
+            throw "$MapName build $build has negative FixUbr: $fixUbr"
+        }
+
+        if ($problemUbr -gt 0 -and $fixUbr -gt 0 -and $fixUbr -le $problemUbr) {
+            throw "$MapName build $build has FixUbr ($fixUbr) not greater than ProblemUbr ($problemUbr)"
+        }
+    }
 }
 
 # ================= LEGACY / UNSUPPORTED BUILDS =================
@@ -221,13 +338,13 @@ $LegacyBuilds = [ordered]@{
 # documents a problem/fix KB pair for the September 2026 RDP issue.
 #
 # Policy on UBR values:
-#   ProblemUbr / FixUbr are filled only when Microsoft explicitly
-#   documents the OS build for that KB in the Update Catalog card.
-#   Missing data is 0 - never a guess.
+# ProblemUbr / FixUbr are filled only when Microsoft explicitly
+# documents the OS build for that KB in the Update Catalog card.
+# Missing data is 0 - never a guess.
 #
 # Verified UBRs:
-#   Server 2019 (9245/9247), Server 2022 (5622/5631),
-#   Server 2025 (33438/33451).
+# Server 2019 (9245/9247), Server 2022 (5622/5631),
+# Server 2025 (33438/33451).
 #
 # Server 2016: UBR set to 0. Live-server check showed UBR 9339 after
 # KB5129239, while the Microsoft catalog lists 9514 for this branch.
@@ -250,13 +367,12 @@ $ServerPatchMap = @{
 # problem/fix KB pair for the September 2026 RDP issue.
 #
 # Verified UBRs:
-#   Win10 1809 LTSC (9245/9247),
-#   Win10 21H2 (7725/7727), Win10 22H2 (7725/7727),
-#   Win11 23H2 (-/7584), Win11 24H2 (9445/9457),
-#   Win11 25H2 (9445/9457), Win11 26H1 (2954/2956).
+# Win10 1809 LTSC (9245/9247),
+# Win10 21H2 (7725/7727), Win10 22H2 (7725/7727),
+# Win11 23H2 (-/7584), Win11 24H2 (9445/9457),
+# Win11 25H2 (9445/9457), Win11 26H1 (2954/2956).
 #
 # Win10 1607 LTSB: UBR set to 0 - see $ServerPatchMap comment.
-#
 # Out-of-servicing builds are intentionally absent - see $LegacyBuilds.
 
 $ClientPatchMap = @{
@@ -270,19 +386,45 @@ $ClientPatchMap = @{
     28000 = @{ OS = "Windows 11 26H1";             Problem = "KB5124012"; Fix = "KB5129194"; ProblemUbr = 2954; FixUbr = 2956 }
 }
 
+try {
+    Assert-PatchMap -Map $ServerPatchMap -MapName 'ServerPatchMap'
+    Assert-PatchMap -Map $ClientPatchMap -MapName 'ClientPatchMap'
+}
+catch {
+    Write-Err "Patch map validation failed: $($_.Exception.Message)"
+    Write-Footer
+    exit 1
+}
+
 # ======================== MAIN ========================
 
 Write-Info "`n=== RDP patch check (September 2026) ===`n"
 
+if (-not (Test-IsAdmin)) {
+    Write-Warn "Script is not running elevated. DISM and some update history checks may be incomplete."
+    Write-Host ""
+}
+
 # --- 1. Detect OS ---
 try {
-    $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop |
-          Select-Object Caption, Version, BuildNumber, OSArchitecture
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop |
+        Select-Object -First 1
+
+    if ($null -eq $os) {
+        throw 'Win32_OperatingSystem returned no instance.'
+    }
+
     $build = [int]$os.BuildNumber
-} catch {
+
+    $productType = $null
+    if ($null -ne $os.ProductType) {
+        $productType = [int]$os.ProductType
+    }
+}
+catch {
     Write-Err "Failed to query OS information: $($_.Exception.Message)"
-    Write-Dim "`nCheck-RdpPatch v1.1.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
-    return
+    Write-Footer
+    exit 1
 }
 
 Write-Host ("OS:           {0}" -f $os.Caption)
@@ -294,32 +436,34 @@ $currentUbr = Get-CurrentUbr
 if ($null -ne $currentUbr) {
     Write-Host ("UBR:          {0}" -f $currentUbr)
 }
+
 Write-Host ""
 
 # --- 2. Choose map based on ProductType (language-independent) ---
-$productType = Get-OsProductType
-if ($null -eq $productType) {
-    # Refuse to guess. This matters because Server 2025 and Windows 11
-    # 24H2 share build 26100 but have different fix KBs. A silent
-    # fallback to the Client map on a Server host would print a wrong
-    # verdict as if it were authoritative.
+# ProductType: 1 = Workstation, 2 = Domain Controller, 3 = Server
+if ($null -eq $productType -or $productType -notin @(1, 2, 3)) {
     Write-Err "Cannot determine OS ProductType (Server vs Client)."
     Write-Dim "This matters: Server 2025 and Windows 11 24H2 share build 26100"
     Write-Dim "but have different fix KBs. Refusing to guess."
-    return
+    Write-Footer
+    exit 1
 }
-$isServer    = ($productType -eq 2) -or ($productType -eq 3)
+
+$isServer = $productType -in @(2, 3)
 
 if ($isServer) {
     $map = $ServerPatchMap
     Write-Dim "Detected: Server OS (ProductType: $productType)"
-} else {
+}
+else {
     $map = $ClientPatchMap
     Write-Dim "Detected: Client OS (ProductType: $productType)"
 }
 
+Write-Host ""
+
 # --- 3. Legacy / unsupported build check (client-side only) ---
-if (-not $isServer -and $LegacyBuilds.Contains($build)) {
+if (-not $isServer -and ($LegacyBuilds.Keys -contains $build)) {
     Write-Host ""
     Write-Warn ("Build {0} - {1}" -f $build, $LegacyBuilds[$build])
     Write-Warn "This build is out of servicing before September 2026."
@@ -331,74 +475,101 @@ if (-not $isServer -and $LegacyBuilds.Contains($build)) {
     Write-Dim "Note: this is NOT a safety verdict. The system may have"
     Write-Dim "      other unpatched vulnerabilities."
     Write-Host ""
-    Write-Dim "Check-RdpPatch v1.1.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
-    return
+    Write-Footer
+    exit 0
 }
 
 if (-not $map.ContainsKey($build)) {
+    $supported = ($map.Keys | Sort-Object) -join ', '
+
     Write-Warn "No patch data available for build $build."
-    Write-Warn "Supported builds: $($map.Keys -join ', ')"
+    Write-Warn "Supported builds: $supported"
     Write-Host ""
     Write-Warn "This build may be:"
     Write-Warn "  - Not yet affected by the September 2026 RDP bug"
     Write-Warn "  - An insider / preview build"
     Write-Warn "  - A future release not yet covered by this tool"
-    Write-Dim "`nCheck-RdpPatch v1.1.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
-    return
+    Write-Host ""
+    Write-Footer
+    exit 0
 }
 
 # --- 4. Show target info ---
 $info = $map[$build]
+
+$problemKb = [string]$info.Problem
+$fixKb     = [string]$info.Fix
+
+$problemKb = $problemKb.Trim().ToUpperInvariant()
+$fixKb     = $fixKb.Trim().ToUpperInvariant()
+
 Write-Info ("Target OS:    {0}" -f $info.OS)
-Write-Host ("Problem KB:   {0}" -f $info.Problem)
-Write-Host ("Fix KB:       {0}" -f $info.Fix)
+Write-Host ("Problem KB:   {0}" -f $problemKb)
+Write-Host ("Fix KB:       {0}" -f $fixKb)
 Write-Host ""
 
 # --- 5. Check installed updates ---
 Write-Dim "--- Checking updates (this may take a moment) ---"
-$problemCheck = Test-KbInstalled -KbId $info.Problem -TargetUbr $info.ProblemUbr
-$fixCheck     = Test-KbInstalled -KbId $info.Fix     -TargetUbr $info.FixUbr
+
+$problemCheck = Test-KbInstalled -KbId $problemKb -TargetUbr ([int]$info.ProblemUbr) -CurrentUbr $currentUbr
+$fixCheck     = Test-KbInstalled -KbId $fixKb     -TargetUbr ([int]$info.FixUbr)     -CurrentUbr $currentUbr
 
 Write-Host ""
 Write-Dim "--- Status ---"
 Write-Host ""
 
-if (-not $problemCheck.Installed) {
-    # Scenario A: problem update not installed -> safe
-    Write-Ok ("[OK] Problem update {0} is NOT installed." -f $info.Problem)
-    Write-Ok "This system is NOT affected by the RDP bug."
-    Write-Host ""
-    Write-Dim ("Note: If Windows Update installs {0} later," -f $info.Problem)
-    Write-Dim ("      you will need fix {0} to repair RDP." -f $info.Fix)
+if ($problemCheck.Source -eq 'invalid' -or $fixCheck.Source -eq 'invalid') {
+    Write-Err "Invalid KB identifier in patch map."
+    Write-Footer
+    exit 1
 }
-elseif ($fixCheck.Installed) {
-    # Scenario B: problem installed + fix installed -> protected
-    Write-Warn ("[!] Problem update {0} IS INSTALLED." -f $info.Problem)
-    Write-Warn ("    Detection method: {0}" -f $problemCheck.Source)
-    Write-Host ""
-    Write-Ok ("[OK] Fix {0} IS INSTALLED." -f $info.Fix)
+
+# --- 6. Verdict ---
+# Safer order:
+#   1. If fix is installed => protected.
+#   2. Else if problem is installed => action required.
+#   3. Else => not affected / not detected.
+if ($fixCheck.Installed) {
+    if ($problemCheck.Installed) {
+        Write-Warn ("[!] Problem update {0} IS INSTALLED." -f $problemKb)
+        Write-Warn ("    Detection method: {0}" -f $problemCheck.Source)
+        Write-Host ""
+    }
+
+    Write-Ok ("[OK] Fix {0} IS INSTALLED." -f $fixKb)
     Write-Ok ("    Detection method: {0}" -f $fixCheck.Source)
     Write-Host ""
     Write-Ok "System is protected. No action required."
 }
-else {
-    # Scenario C: problem installed, fix missing -> ACTION REQUIRED
-    Write-Err ("[!] Problem update {0} IS INSTALLED." -f $info.Problem)
+elseif ($problemCheck.Installed) {
+    Write-Err ("[!] Problem update {0} IS INSTALLED." -f $problemKb)
     Write-Err ("    Detection method: {0}" -f $problemCheck.Source)
     Write-Err "    This is the cause of the RDP hang bug."
     Write-Host ""
-    Write-Err ("[!] Fix {0} is NOT installed. ACTION REQUIRED." -f $info.Fix)
+    Write-Err ("[!] Fix {0} is NOT installed. ACTION REQUIRED." -f $fixKb)
     Write-Err "    RDP connections may hang or terminate unexpectedly."
+
+    $script:ExitCode = 2
+}
+else {
+    Write-Ok ("[OK] Problem update {0} is NOT installed." -f $problemKb)
+    Write-Ok "This system is NOT affected by the RDP bug."
+    Write-Host ""
+    Write-Dim ("Note: If Windows Update installs {0} later," -f $problemKb)
+    Write-Dim ("      you will need fix {0} to repair RDP." -f $fixKb)
 }
 
-# --- 6. Show download link and installation guidance ---
-if ($info.Fix) {
-    $catalogUrl = "https://www.catalog.update.microsoft.com/Search.aspx?q=$($info.Fix)"
+# --- 7. Show download link and installation guidance ---
+$catalogUrl = $null
+
+if ($fixKb -and -not $fixCheck.Installed) {
+    $catalogUrl = "https://www.catalog.update.microsoft.com/Search.aspx?q=$fixKb"
+
     Write-Host ""
     Write-Info "Microsoft Update Catalog link:"
     Write-Host $catalogUrl -ForegroundColor Yellow
 
-    if (-not $fixCheck.Installed) {
+    if ($problemCheck.Installed) {
         Write-Host ""
         Write-Info "Installation steps:"
         Write-Host "  1. Open the link above in your browser"
@@ -406,28 +577,39 @@ if ($info.Fix) {
         Write-Host "  3. Download the .msu file"
         Write-Host "  4. Run as Administrator:"
         Write-Host ""
-        Write-Host ("     wusa.exe `"C:\Path\To\$($info.Fix)-x64.msu`" /quiet /norestart") -ForegroundColor Yellow
+
+        $wusaCommand = 'wusa.exe "{0}-x64.msu" /quiet /norestart' -f $fixKb
+        Write-Host "     $wusaCommand" -ForegroundColor Yellow
+
         Write-Host ""
         Write-Host "  5. Restart the system when ready"
         Write-Host ""
-        Write-Dim "Tip: install programmatically via PowerShell:"
-        Write-Dim "     `$url = '<paste-direct-.msu-link-from-catalog>'"
-        Write-Dim ("     `$msu = `"C:\Temp\$($info.Fix).msu`"")
-        Write-Dim "     Invoke-WebRequest -Uri `$url -OutFile `$msu"
-        Write-Dim "     & wusa.exe `$msu /quiet /norestart"
-    }
 
-    if ($OpenLink) {
-        Write-Info "`nOpening catalog in browser..."
-        try {
-            Start-Process $catalogUrl
-        } catch {
-            Write-Warn "Could not open browser: $($_.Exception.Message)"
-            Write-Dim "Please visit the link manually."
-        }
+        Write-Dim "Tip: install programmatically via PowerShell:"
+        Write-Dim '     $url = ''<paste-direct-.msu-link-from-catalog>'''
+        Write-Dim ('     $msu = "C:\Temp\{0}.msu"' -f $fixKb)
+        Write-Dim '     Invoke-WebRequest -Uri $url -OutFile $msu'
+        Write-Dim '     & wusa.exe $msu /quiet /norestart'
+    }
+    else {
+        Write-Host ""
+        Write-Dim "Reference download link for the fix, in case the problem update is installed later."
+    }
+}
+
+if ($OpenLink -and $catalogUrl) {
+    Write-Info "`nOpening catalog in browser..."
+    try {
+        Start-Process $catalogUrl
+    }
+    catch {
+        Write-Warn "Could not open browser: $($_.Exception.Message)"
+        Write-Dim "Please visit the link manually."
     }
 }
 
 Write-Host ""
-Write-Dim "Check-RdpPatch v1.1.1  |  (c) 2026 fixsys-spb  |  github.com/fixsys-spb/Operpatch"
+Write-Footer
 Write-Host ""
+
+exit $script:ExitCode
